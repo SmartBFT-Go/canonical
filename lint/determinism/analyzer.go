@@ -3,8 +3,10 @@
 package determinism
 
 import (
+	"fmt"
 	"go/ast"
 	"go/types"
+	"regexp"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
@@ -21,13 +23,27 @@ written justification in review; a false negative costs a cluster-wide digest
 divergence that no test will show you.
 
 Calls are resolved through the type checker, not matched by name, so an aliased
-import (pb "google.golang.org/protobuf/proto") and a dot-import are both caught.`
+import (pb "google.golang.org/protobuf/proto") and a dot-import are both caught.
+
+Ranging over a map with a key variable is reported only in packages whose import
+path matches -detpath, because the rule is a deterministic-core rule and firing
+it repo-wide would bury real findings under pre-existing ones. Generic map
+ranges need types.CoreType and are not covered today.`
+
+const detpathDefault = `(^|/)det(/|$)`
 
 var Analyzer = &analysis.Analyzer{
 	Name:     "determinism",
 	Doc:      doc,
 	Requires: []*analysis.Analyzer{inspect.Analyzer},
 	Run:      run,
+}
+
+var detpath string
+
+func init() {
+	Analyzer.Flags.StringVar(&detpath, "detpath", detpathDefault,
+		"regexp matched against the package import path; the map-range rule fires only where it matches")
 }
 
 // Keyed by "<import path>.<func name>". A method resolves to the same key as a
@@ -55,7 +71,33 @@ func run(pass *analysis.Pass) (any, error) {
 	if packageHashes(pass) {
 		checkMarshal(pass, insp)
 	}
+
+	core, err := regexp.Compile(detpath)
+	if err != nil {
+		return nil, fmt.Errorf("bad -detpath regexp %q: %w", detpath, err)
+	}
+	if core.MatchString(pass.Pkg.Path()) {
+		checkMapRange(pass, insp)
+	}
 	return nil, nil
+}
+
+func checkMapRange(pass *analysis.Pass, insp *inspector.Inspector) {
+	insp.Preorder([]ast.Node{(*ast.RangeStmt)(nil)}, func(n ast.Node) {
+		node := n.(*ast.RangeStmt)
+		if node.Key == nil {
+			return // observing no key observes no order
+		}
+		t := pass.TypesInfo.TypeOf(node.X)
+		if t == nil {
+			return
+		}
+		// Underlying(), not a direct assertion: type Index map[string][]byte is
+		// a *types.Named and would otherwise escape the rule.
+		if _, isMap := t.Underlying().(*types.Map); isMap {
+			pass.Reportf(node.Pos(), "range over map is unordered; collect keys, slices.Sort, then iterate")
+		}
+	})
 }
 
 func checkMarshal(pass *analysis.Pass, insp *inspector.Inspector) {
