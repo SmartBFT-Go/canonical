@@ -1,0 +1,222 @@
+{
+  "$comment": "Frozen v1. These bytes never change. An implementation is conformant iff it reproduces every vector here. See WIRE-SPEC.md. Changing an existing vector is a breaking wire change requiring a coordinated cluster upgrade; a new encoding gets a new Version and a NEW vector. The annotation arrays are for human review and are not asserted.",
+
+  "vectors": [
+    {
+      "name": "header/v1/zero-root",
+      "structure": "Header",
+      "fields": {
+        "Version": 1,
+        "PrevStateRoot": "0000000000000000000000000000000000000000000000000000000000000000",
+        "PrevSeq": 0,
+        "ConsensusTime": 0
+      },
+      "der": "302b02010104200000000000000000000000000000000000000000000000000000000000000000020100020100",
+      "sha256": "fc83714f2249aef7c49a5176f1cf413eb94a6ee87c1d678f7d9de300f5685d9f",
+      "annotation": [
+        "30 2b             SEQUENCE, 43 bytes",
+        "  02 01 01        INTEGER 1                Version",
+        "  04 20 00*32     OCTET STRING, 32 bytes   PrevStateRoot (genesis)",
+        "  02 01 00        INTEGER 0                PrevSeq",
+        "  02 01 00        INTEGER 0                ConsensusTime"
+      ]
+    },
+    {
+      "name": "header/v1/max-ints",
+      "structure": "Header",
+      "fields": {
+        "Version": 1,
+        "PrevStateRoot": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "PrevSeq": 9223372036854775807,
+        "ConsensusTime": 9223372036854775807
+      },
+      "der": "30390201010420ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff02087fffffffffffffff02087fffffffffffffff",
+      "sha256": "cb9a2c400d498ad998daa89e0b353c0422cd2ccd6018e62f8395072fe1cd9f8a",
+      "annotation": [
+        "30 39                        SEQUENCE, 57 bytes",
+        "  02 01 01                   INTEGER 1                Version",
+        "  04 20 ff*32                OCTET STRING, 32 bytes   PrevStateRoot",
+        "  02 08 7fffffffffffffff     INTEGER 2^63-1           PrevSeq (widest INTEGER a signed int64 reaches)",
+        "  02 08 7fffffffffffffff     INTEGER 2^63-1           ConsensusTime (year 2262 in Unix nanoseconds)"
+      ]
+    },
+    {
+      "name": "header/v1/seq-127",
+      "structure": "Header",
+      "fields": {
+        "Version": 1,
+        "PrevStateRoot": "0000000000000000000000000000000000000000000000000000000000000000",
+        "PrevSeq": 127,
+        "ConsensusTime": 0
+      },
+      "der": "302b0201010420000000000000000000000000000000000000000000000000000000000000000002017f020100",
+      "sha256": "1962b07c07d4caf0888644f83a03c32d6cadb457147687736eca0f614a89dfd7",
+      "annotation": [
+        "30 2b             SEQUENCE, 43 bytes",
+        "  02 01 01        INTEGER 1                Version",
+        "  04 20 00*32     OCTET STRING, 32 bytes   PrevStateRoot",
+        "  02 01 7f        INTEGER 127              PrevSeq — the last value that fits one content byte",
+        "  02 01 00        INTEGER 0                ConsensusTime"
+      ]
+    },
+    {
+      "name": "header/v1/seq-128",
+      "structure": "Header",
+      "fields": {
+        "Version": 1,
+        "PrevStateRoot": "0000000000000000000000000000000000000000000000000000000000000000",
+        "PrevSeq": 128,
+        "ConsensusTime": 0
+      },
+      "der": "302c0201010420000000000000000000000000000000000000000000000000000000000000000002020080020100",
+      "sha256": "e7c70b0c59ce4dc06bfe383eeb25ce09ac18c4eb3e4c525973201dcc420ba798",
+      "annotation": [
+        "30 2c             SEQUENCE, 44 bytes — one byte longer than seq-127",
+        "  02 01 01        INTEGER 1                Version",
+        "  04 20 00*32     OCTET STRING, 32 bytes   PrevStateRoot",
+        "  02 02 00 80     INTEGER 128              PrevSeq — INTEGER is signed, so 0x80 alone would be -128; DER prepends 0x00",
+        "  02 01 00        INTEGER 0                ConsensusTime"
+      ]
+    },
+    {
+      "name": "proposal/v0/empty",
+      "structure": "ProposalV0",
+      "fields": {
+        "Payload": "",
+        "Header": "",
+        "Metadata": "",
+        "VerificationSequence": 0
+      },
+      "der": "3009040004000400020100",
+      "sha256": "cc67164898e13d2ad50b32e740d8841aef5d0be6daefdf13492405ab087f793f",
+      "annotation": [
+        "30 09             SEQUENCE, 9 bytes",
+        "  04 00           OCTET STRING, 0 bytes    Payload — nil and empty encode identically",
+        "  04 00           OCTET STRING, 0 bytes    Header",
+        "  04 00           OCTET STRING, 0 bytes    Metadata",
+        "  02 01 00        INTEGER 0                VerificationSequence"
+      ]
+    },
+    {
+      "name": "proposal/v0/smartbft-reference",
+      "structure": "ProposalV0",
+      "fields": {
+        "Payload": "504159",
+        "Header": "484452",
+        "Metadata": "4d4554",
+        "VerificationSequence": 7
+      },
+      "der": "30120403504159040348445204034d4554020107",
+      "sha256": "35d84b08b379543f9d140ebc473d859c95e743dd0968adf54be28dd6e7727522",
+      "annotation": [
+        "Observed from the unmodified fork: types.Proposal{Payload:\"PAY\", Header:\"HDR\", Metadata:\"MET\", VerificationSequence:7}.",
+        "Proposal.Digest() returns exactly the sha256 above. The migrated Digest() must reproduce both.",
+        "30 12                  SEQUENCE, 18 bytes",
+        "  04 03 50 41 59       OCTET STRING \"PAY\"       Payload",
+        "  04 03 48 44 52       OCTET STRING \"HDR\"       Header",
+        "  04 03 4d 45 54       OCTET STRING \"MET\"       Metadata",
+        "  02 01 07             INTEGER 7                VerificationSequence",
+        "Wire order is struct DECLARATION order. The keyed literal in the fork's Digest() lists the fields differently; keyed literals do not reorder fields."
+      ]
+    },
+    {
+      "name": "proposal/v0/len-128",
+      "structure": "ProposalV0",
+      "fields": {
+        "Payload": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f",
+        "Header": "",
+        "Metadata": "",
+        "VerificationSequence": 0
+      },
+      "der": "30818a048180000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f04000400020100",
+      "sha256": "0b91d84ecb42ce75e8e7cd900069b68db0dad026e389ef0af59737a2b3e553ed",
+      "annotation": [
+        "30 81 8a               SEQUENCE, 138 bytes — long length form: 0x81 says one length byte follows",
+        "  04 81 80 00..7f      OCTET STRING, 128 bytes  Payload — 127 would be short form 04 7f",
+        "  04 00                OCTET STRING, 0 bytes    Header",
+        "  04 00                OCTET STRING, 0 bytes    Metadata",
+        "  02 01 00             INTEGER 0                VerificationSequence",
+        "Long form is minimal: 128 encodes as 81 80, never 82 00 80."
+      ]
+    }
+  ],
+
+  "merkle": [
+    {
+      "name": "merkle/leaf/basic",
+      "fn": "leaf",
+      "treeID": 1,
+      "depth": 0,
+      "key": "6b6579",
+      "val": "76616c",
+      "hash": "6fd00b5b8e0150f8b35d08a1c712de26bf6dc47a1c50054d109642db80fcc9b9",
+      "annotation": [
+        "preimage 00 0000000000000001 00 0000000000000003 6b6579 0000000000000003 76616c",
+        "         ^prefix ^treeID     ^depth ^len(key)     ^\"key\" ^len(val)        ^\"val\""
+      ]
+    },
+    {
+      "name": "merkle/leaf/tree2",
+      "fn": "leaf",
+      "treeID": 2,
+      "depth": 0,
+      "key": "6b6579",
+      "val": "76616c",
+      "hash": "67ae5a82892423720c7269a1eccaeaed83d62d035ffbea6a1c3b569407d893c2",
+      "annotation": [
+        "preimage 00 0000000000000002 00 0000000000000003 6b6579 0000000000000003 76616c",
+        "Same key and value as merkle/leaf/basic, different treeID, different hash: a leaf cannot be relocated across trees."
+      ]
+    },
+    {
+      "name": "merkle/leaf/depth1",
+      "fn": "leaf",
+      "treeID": 1,
+      "depth": 1,
+      "key": "6b6579",
+      "val": "76616c",
+      "hash": "3729221765a226631a357a10216ecc48e2b0ef5572d1b67444f462966b7a0ad8",
+      "annotation": [
+        "preimage 00 0000000000000001 01 0000000000000003 6b6579 0000000000000003 76616c",
+        "Same tree and payload as merkle/leaf/basic, different depth, different hash: a leaf cannot be relocated within a tree."
+      ]
+    },
+    {
+      "name": "merkle/internal/basic",
+      "fn": "internal",
+      "treeID": 1,
+      "depth": 0,
+      "left": "1111111111111111111111111111111111111111111111111111111111111111",
+      "right": "2222222222222222222222222222222222222222222222222222222222222222",
+      "hash": "cf1623eff5edcb8a954844be44e925547772ea0a25cd9cb9bd5b85318b1877c7",
+      "annotation": [
+        "preimage 01 0000000000000001 00 11*32 22*32",
+        "         ^prefix ^treeID     ^depth ^left ^right",
+        "Children are fixed 32-byte digests and carry no length prefix."
+      ]
+    },
+    {
+      "name": "merkle/empty/basic",
+      "fn": "empty",
+      "treeID": 1,
+      "depth": 0,
+      "hash": "b81a368108155e86fdc6d9d81eb4d0cf235d87757db13842145ed62e0b5970fc",
+      "annotation": [
+        "preimage 02 0000000000000001 00",
+        "         ^prefix ^treeID     ^depth",
+        "A third prefix, not a leaf of empty key and empty value: otherwise non-membership and membership-of-empty collide."
+      ]
+    },
+    {
+      "name": "merkle/empty/tree2",
+      "fn": "empty",
+      "treeID": 2,
+      "depth": 0,
+      "hash": "9b94cc2e287ba06511035d89f33dc35f0ee5c7da854edfc58b284c6936e43f4c",
+      "annotation": [
+        "preimage 02 0000000000000002 00",
+        "An empty subtree is bound to its tree too, so an absence proof from the revision log does not transfer to the key index."
+      ]
+    }
+  ]
+}
