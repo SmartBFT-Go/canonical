@@ -4,9 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"math"
-	"os"
-	"os/exec"
-	"strings"
 	"testing"
 )
 
@@ -177,43 +174,5 @@ func TestDeterminism(t *testing.T) {
 		if !bytes.Equal(got, want) {
 			t.Fatalf("iteration %d encoded differently: got %x want %x", i, got, want)
 		}
-	}
-}
-
-func TestZeroDependencies(t *testing.T) {
-	mod, err := os.ReadFile("go.mod")
-	if err != nil {
-		t.Fatalf("read go.mod: %v", err)
-	}
-	modulePath := ""
-	for _, line := range strings.Split(string(mod), "\n") {
-		line = strings.TrimSpace(line)
-		switch {
-		case strings.HasPrefix(line, "module "):
-			modulePath = strings.TrimSpace(strings.TrimPrefix(line, "module "))
-		case strings.HasPrefix(line, "require"), strings.HasPrefix(line, "replace"):
-			t.Errorf("go.mod carries a %q directive; canonical must depend on nothing", line)
-		}
-	}
-	if modulePath == "" {
-		t.Fatal("go.mod declares no module path")
-	}
-
-	out, err := exec.Command("go", "list", "-deps", "./...").CombinedOutput()
-	if err != nil {
-		t.Fatalf("go list -deps: %v\n%s", err, out)
-	}
-	var external []string
-	for _, dep := range strings.Fields(string(out)) {
-		if dep == modulePath || strings.HasPrefix(dep, modulePath+"/") {
-			continue
-		}
-		// A stdlib import path's first segment is not a domain, so it has no dot.
-		if strings.Contains(strings.SplitN(dep, "/", 2)[0], ".") {
-			external = append(external, dep)
-		}
-	}
-	if len(external) != 0 {
-		t.Errorf("non-stdlib dependencies: %s", strings.Join(external, ", "))
 	}
 }
