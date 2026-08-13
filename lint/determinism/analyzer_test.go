@@ -9,5 +9,5 @@ import (
 )
 
 func TestAnalyzer(t *testing.T) {
-	analysistest.Run(t, analysistest.TestData(), determinism.Analyzer, "a", "nohash")
+	analysistest.Run(t, analysistest.TestData(), determinism.Analyzer, "a", "nohash", "det", "edge")
 }
