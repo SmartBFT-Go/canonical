@@ -1,0 +1,37 @@
+---
+name: Gates
+
+on:  # yamllint disable-line rule:truthy
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+  workflow_dispatch:
+
+env:
+  # A floating lint version turns a gate into a coin flip.
+  GOLANGCI_VER: v2.12.2
+  GOWORK: "off"
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        name: Checkout Code
+
+      - name: Install Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Install golangci-lint
+        run: |
+          base=https://raw.githubusercontent.com/golangci/golangci-lint
+          curl -sSfL "$base/${GOLANGCI_VER}/install.sh" \
+            | sh -s -- -b "$(go env GOPATH)/bin" "${GOLANGCI_VER}"
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      # The same script a developer runs locally; there is no second definition.
+      - name: Run the gates
+        run: bash ci/verify-gates.sh

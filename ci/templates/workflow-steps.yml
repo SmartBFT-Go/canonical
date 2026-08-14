@@ -48,5 +48,6 @@ steps:
 
   - name: negative gate
     run: bash ci/negative-gate.sh
-# Worked example: canonical/.github/workflows/ci.yml, which runs
-# ci/verify-gates.sh — the same script a developer runs locally.
+# Worked example: canonical/.github/workflows/ci.yml. It pins golangci-lint by
+# exact version and runs ci/verify-gates.sh, which is the whole sequence above
+# in one script — the same one a developer runs locally.
