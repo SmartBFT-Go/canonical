@@ -288,25 +288,37 @@ The **encoding** of `ConsensusTime` is frozen here (§3.1: `int64` Unix nanoseco
 
 6.1 The leader stamps its own wall clock into `ConsensusTime` when it constructs a proposal.
 
-6.2 A replica MUST reject a proposal whose `ConsensusTime` lies outside an acceptance window
-relative to that replica's own clock.
+6.2 Validation MUST read no local clock. A replica accepts `t` if and only if, writing `p` for
+the `ConsensusTime` of the last decision it has committed:
 
-6.3 A replica MUST reject a proposal whose `ConsensusTime` is not strictly greater than the
-`ConsensusTime` of the last decision it has committed.
+```
+t > p
+t - p <= MAX_STEP
+```
 
-6.4 Open parameters, to be decided in Phase 3:
+`MAX_STEP` is a fixed protocol constant, identical on every replica.
 
-- The **window size** in §6.2. Too tight and honest clock drift stalls progress; too loose and
-  §6.5 widens.
-- Whether a new leader after a view change compares against the last **committed**
-  `ConsensusTime` or a locally tracked value. A locally tracked value must not let a new leader
-  move time backwards, and must not deadlock a view change either.
+6.3 §6.2 is stated negatively as well, because it is the whole point of the rule: a replica MUST
+NOT compare `ConsensusTime` against its own clock. Two honest replicas with normally drifting
+clocks would reach different verdicts on the same proposal, acceptance would not be a function of
+committed state, and identical apply would break. An earlier version of this section required
+exactly that comparison and was wrong.
 
-6.5 Accepted limitation, stated rather than left implicit: a Byzantine leader can place
-`ConsensusTime` anywhere inside the acceptance window. Every honest replica still agrees on the
-value, so state remains deterministic and TTL expiry still fires identically everywhere.
-Determinism is preserved; timeliness is not. `ConsensusTime` is a deterministic clock, not a
-trustworthy one, and MUST NOT be used as evidence of when an event actually occurred.
+6.4 The monotonicity check of §6.2 is against the last **committed** value, not a locally tracked
+one. A new leader after a view change inherits `p` from the log like everyone else, so it cannot
+move time backwards and there is nothing to deadlock on.
+
+6.5 Open parameter, to be decided in Phase 3: the value of `MAX_STEP`. Too large and §6.6 widens.
+Too small and an idle cluster stalls — after a gap longer than `MAX_STEP` an honest leader's true
+clock already exceeds `p + MAX_STEP`, so it must propose a stamp it knows to be stale or be
+rejected.
+
+6.6 Accepted limitation, stated rather than left implicit: a Byzantine leader can place
+`ConsensusTime` anywhere in `(p, p + MAX_STEP]`, and the skew compounds across decisions. Every
+honest replica still agrees on the value, so state remains deterministic and TTL expiry still
+fires identically everywhere. Determinism is preserved; timeliness is not. `ConsensusTime` is a
+deterministic clock, not a trustworthy one, and MUST NOT be used as evidence of when an event
+actually occurred.
 
 ## 7. Compatibility
 
