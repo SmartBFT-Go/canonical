@@ -1,0 +1,9 @@
+package det
+
+// Aliased on purpose: depguard matches the import path, not the local name.
+import clock "time"
+
+// Stamp reads the wall clock instead of the consensus time.
+func Stamp() int64 {
+	return clock.Now().UnixNano()
+}

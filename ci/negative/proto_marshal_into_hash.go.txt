@@ -1,0 +1,18 @@
+// Package det is the deterministic core of the throwaway module the negative
+// gate builds. It never compiles inside this repository.
+package det
+
+import (
+	"crypto/sha256"
+
+	"google.golang.org/protobuf/proto"
+)
+
+// Digest marshals with proto and hashes the result in the same package.
+func Digest(m proto.Message) ([32]byte, error) {
+	b, err := proto.Marshal(m)
+	if err != nil {
+		return [32]byte{}, err
+	}
+	return sha256.Sum256(b), nil
+}

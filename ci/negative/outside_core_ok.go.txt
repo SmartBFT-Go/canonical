@@ -1,0 +1,22 @@
+// Package edge is the negative control: everything banned in det is legal here,
+// so a rule that fires on this file is scoped wrong.
+package edge
+
+import (
+	"os"
+	"time"
+)
+
+// Env reports the value of name and the moment it was read.
+func Env(name string) (string, time.Time) {
+	return os.Getenv(name), time.Now()
+}
+
+// Count sums the key lengths of m in whatever order the runtime picks.
+func Count(m map[string]int) int {
+	n := 0
+	for k := range m {
+		n += len(k)
+	}
+	return n
+}

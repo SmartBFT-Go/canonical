@@ -1,0 +1,13 @@
+package det
+
+// Index is a named map type; without Underlying() the rule would miss it.
+type Index map[string][]byte
+
+// Concat iterates in map order, so two replicas can produce different bytes.
+func Concat(idx Index) []byte {
+	var out []byte
+	for k := range idx {
+		out = append(out, idx[k]...)
+	}
+	return out
+}
