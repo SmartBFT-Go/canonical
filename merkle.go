@@ -47,6 +47,7 @@ func InternalHash(treeID uint64, depth uint8, left, right [32]byte) [32]byte {
 	return [32]byte(h.Sum(nil))
 }
 
+// EmptyHash binds treeID and depth so an empty subtree cannot be relocated.
 func EmptyHash(treeID uint64, depth uint8) [32]byte {
 	h := sha256.New()
 	var w [8]byte

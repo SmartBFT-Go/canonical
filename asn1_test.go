@@ -131,8 +131,8 @@ func TestTrailingBytesRejected(t *testing.T) {
 		t.Fatalf("MarshalHeader: %v", err)
 	}
 	for _, suffix := range [][]byte{{0xff}, {0x00, 0x00}} {
-		if _, err := UnmarshalHeader(append(bytes.Clone(header), suffix...)); !errors.Is(err, ErrTrailing) {
-			t.Errorf("UnmarshalHeader(trailing %x) error = %v, want ErrTrailing", suffix, err)
+		if _, uerr := UnmarshalHeader(append(bytes.Clone(header), suffix...)); !errors.Is(uerr, ErrTrailing) {
+			t.Errorf("UnmarshalHeader(trailing %x) error = %v, want ErrTrailing", suffix, uerr)
 		}
 	}
 

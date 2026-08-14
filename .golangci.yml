@@ -1,0 +1,73 @@
+---
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - depguard
+    - forcetypeassert
+    - errorlint
+    - nilerr
+    - contextcheck
+    - noctx
+    - makezero
+    - durationcheck
+    - copyloopvar
+    - bidichk
+    - gosec
+    - gocritic
+    - revive
+    - testifylint
+    - usetesting
+    - wastedassign
+  settings:
+    govet:
+      enable: [shadow]
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+    depguard:
+      rules:
+        # The whole module is deterministic core, so no path scope. asn1 is
+        # absent from the deny list: canonical is where it is legal.
+        canonical-core:
+          list-mode: lax
+          files:
+            - "**"
+            - "!$test"
+          deny:
+            - pkg: "time$"
+              desc: "no wall clock; ConsensusTime comes from the header"
+            - pkg: "math/rand"
+              desc: "no randomness; derive from H(stateRoot||seq)"
+            - pkg: "os"
+              desc: "no ambient environment"
+            - pkg: "context"
+              desc: "no cancellation-dependent control flow"
+            - pkg: "unsafe$"
+              desc: "no unsafe"
+            - pkg: "reflect$"
+              desc: "no reflection"
+            - pkg: "google.golang.org/protobuf"
+              desc: "encode via canonical, never proto"
+            - pkg: "encoding/json$"
+              desc: "encode via canonical, never json"
+            - pkg: "encoding/gob$"
+              desc: "encode via canonical, never gob"
+        canonical-core-tests:
+          list-mode: lax
+          files:
+            - "**"
+          deny:
+            - pkg: "math/rand"
+              desc: "no randomness in canonical tests either"
+
+formatters:
+  enable:
+    - gofmt
+    - goimports

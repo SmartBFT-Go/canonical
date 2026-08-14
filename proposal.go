@@ -12,10 +12,12 @@ type ProposalV0 struct {
 	VerificationSequence int64
 }
 
+// MarshalProposalV0 encodes p in SmartBFT's frozen declaration order.
 func MarshalProposalV0(p ProposalV0) ([]byte, error) {
 	return marshal(p)
 }
 
+// UnmarshalProposalV0 decodes b under the R-RULE. There is no version to check.
 func UnmarshalProposalV0(b []byte) (ProposalV0, error) {
 	var p ProposalV0
 	if err := unmarshal(b, &p); err != nil {

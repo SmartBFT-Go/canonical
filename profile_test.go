@@ -182,7 +182,7 @@ func TestZeroDependencies(t *testing.T) {
 		t.Fatal("go.mod declares no module path")
 	}
 
-	out, err := exec.Command("go", "list", "-deps", "./...").CombinedOutput()
+	out, err := exec.CommandContext(t.Context(), "go", "list", "-deps", "./...").CombinedOutput()
 	if err != nil {
 		t.Fatalf("go list -deps: %v\n%s", err, out)
 	}

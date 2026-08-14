@@ -1,0 +1,77 @@
+---
+# Template. Copy into a repo that has a deterministic core.
+# A package is deterministic core when `det` is an element of its path.
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - depguard
+    - forcetypeassert
+    - errorlint
+    - nilerr
+    - contextcheck
+    - noctx
+    - makezero
+    - durationcheck
+    - copyloopvar
+    - bidichk
+    - gosec
+    - gocritic
+    - revive
+    - testifylint
+    - usetesting
+    - wastedassign
+  settings:
+    govet:
+      enable: [shadow]
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+    depguard:
+      rules:
+        deterministic-core:
+          list-mode: lax
+          files:
+            - "**/det/**"
+            - "!$test"
+          deny:
+            - pkg: "time$"
+              desc: "deterministic core: no wall clock; use ConsensusTime"
+            - pkg: "math/rand"
+              desc: "deterministic core: no randomness; derive it from state"
+            - pkg: "os"
+              desc: "deterministic core: no ambient environment"
+            - pkg: "context"
+              desc: "deterministic core: no cancellation-dependent control flow"
+            - pkg: "unsafe$"
+              desc: "deterministic core: no unsafe"
+            - pkg: "reflect$"
+              desc: "deterministic core: no reflection"
+            - pkg: "google.golang.org/protobuf"
+              desc: "deterministic core: encode via canonical, never proto"
+            - pkg: "encoding/json$"
+              desc: "deterministic core: encode via canonical, never json"
+            - pkg: "encoding/gob$"
+              desc: "deterministic core: encode via canonical, never gob"
+            # Legal in canonical and nowhere else: asn1.Unmarshal returns
+            # trailing bytes in rest instead of erroring.
+            - pkg: "encoding/asn1$"
+              desc: "deterministic core: decode via canonical, never asn1"
+        deterministic-core-tests:
+          list-mode: lax
+          files:
+            - "**/det/**"
+          deny:
+            - pkg: "math/rand"
+              desc: "no randomness in deterministic-core tests either"
+
+formatters:
+  enable:
+    - gofmt
+    - goimports

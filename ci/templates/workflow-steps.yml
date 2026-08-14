@@ -1,0 +1,52 @@
+---
+# Template. Reference steps for repos with a deterministic core; nothing runs
+# this file. Copy the steps you need into the repo's own workflow.
+steps:
+  # go.work is local-iteration-only. CI must resolve as if it did not exist.
+  - name: set GOWORK=off
+    run: echo "GOWORK=off" >> "$GITHUB_ENV"
+
+  - name: go.work must not be tracked
+    run: |
+      if git ls-files --error-unmatch go.work >/dev/null 2>&1; then
+        echo "::error::go.work is tracked; it is local-iteration-only"
+        exit 1
+      fi
+
+  # Parsed directives, not go.mod text: a replace is seen whatever the syntax.
+  - name: reject replace directives
+    run: |
+      if go mod edit -json | grep -q '"Replace"'; then
+        echo "::error::replace is not permitted; pin by version or commit"
+        go mod edit -json | grep -A5 '"Replace"'
+        exit 1
+      fi
+
+  # Both invocations. ./... at the root does not descend into a nested module.
+  - name: test
+    run: |
+      go test -count 1 -race -shuffle=on ./...
+      (cd lint && go test -count 1 -race -shuffle=on ./...)
+
+  # -detpath, not -determinism.detpath: singlechecker registers flags flat and
+  # the prefixed spelling exits 2. Exit 1 on findings under vet, 3 standalone.
+  - name: determinism analyzer
+    run: |
+      (cd lint && go build -o ../bin/detcheck ./cmd/detcheck)
+      go vet -vettool="$PWD/bin/detcheck" -detpath='(^|/)det(/|$)' ./...
+
+  - name: lint
+    run: |
+      golangci-lint config verify
+      golangci-lint run ./...
+
+  # `golangci-lint fmt --diff` exits 0 even when it prints a diff.
+  - name: format drift
+    run: |
+      golangci-lint fmt ./...
+      git diff --exit-code
+
+  - name: negative gate
+    run: bash ci/negative-gate.sh
+# Worked example: canonical/.github/workflows/ci.yml, which runs
+# ci/verify-gates.sh — the same script a developer runs locally.

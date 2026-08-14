@@ -2,6 +2,7 @@ package canonical
 
 import "encoding/asn1"
 
+// VersionV1 is the only structure version this package encodes or accepts.
 const VersionV1 int64 = 1
 
 // marshal and unmarshal are the only asn1.Marshal / asn1.Unmarshal call sites

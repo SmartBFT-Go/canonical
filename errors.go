@@ -2,6 +2,7 @@ package canonical
 
 import "errors"
 
+// Errors returned by every exported Marshal/Unmarshal in this package.
 var (
 	ErrVersion  = errors.New("canonical: unknown structure version")
 	ErrTrailing = errors.New("canonical: trailing bytes after structure")

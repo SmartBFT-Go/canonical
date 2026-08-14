@@ -37,13 +37,18 @@ func TestMerkleDeterminism(t *testing.T) {
 	key, val := []byte("k"), []byte("v")
 	left, right := LeafHash(1, 1, key, val), LeafHash(1, 1, val, key)
 
-	if LeafHash(3, 4, key, val) != LeafHash(3, 4, key, val) {
+	// Bound to variables so the comparison is between two calls, not one expression
+	// staticcheck can fold.
+	leaf1, leaf2 := LeafHash(3, 4, key, val), LeafHash(3, 4, key, val)
+	if leaf1 != leaf2 {
 		t.Error("LeafHash is not deterministic")
 	}
-	if InternalHash(3, 4, left, right) != InternalHash(3, 4, left, right) {
+	internal1, internal2 := InternalHash(3, 4, left, right), InternalHash(3, 4, left, right)
+	if internal1 != internal2 {
 		t.Error("InternalHash is not deterministic")
 	}
-	if EmptyHash(3, 4) != EmptyHash(3, 4) {
+	empty1, empty2 := EmptyHash(3, 4), EmptyHash(3, 4)
+	if empty1 != empty2 {
 		t.Error("EmptyHash is not deterministic")
 	}
 }

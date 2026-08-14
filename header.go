@@ -11,6 +11,7 @@ type Header struct {
 	ConsensusTime int64 // Unix nanoseconds; time.Time is banned, see doc.go
 }
 
+// MarshalHeader encodes h, rejecting an unknown version or a wrong-width root.
 func MarshalHeader(h Header) ([]byte, error) {
 	if h.Version != VersionV1 {
 		return nil, ErrVersion
@@ -21,6 +22,7 @@ func MarshalHeader(h Header) ([]byte, error) {
 	return marshal(h)
 }
 
+// UnmarshalHeader decodes b under the R-RULE, then applies the same checks as MarshalHeader.
 func UnmarshalHeader(b []byte) (Header, error) {
 	var h Header
 	if err := unmarshal(b, &h); err != nil {
