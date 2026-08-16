@@ -16,9 +16,16 @@ steps:
   # Parsed directives, not go.mod text: a replace is seen whatever the syntax.
   - name: reject replace directives
     run: |
-      if go mod edit -json | grep -q '"Replace"'; then
+      modjson="$(go mod edit -json)"
+      # The key is always emitted, so its absence means the format changed.
+      if ! grep -q '"Replace":' <<<"$modjson"; then
+        echo "::error::no Replace key in go mod output; this check is broken"
+        exit 1
+      fi
+      # Absent replaces print as null; any replace prints an array.
+      if ! grep -q '"Replace": null' <<<"$modjson"; then
         echo "::error::replace is not permitted; pin by version or commit"
-        go mod edit -json | grep -A5 '"Replace"'
+        sed -n '/"Replace": \[/,/^\t\],$/p' <<<"$modjson"
         exit 1
       fi
 
