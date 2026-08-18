@@ -15,7 +15,9 @@ import (
 // Structures allowed to omit the leading Version field. A new entry is a deliberate,
 // reviewable act, not a default.
 var versionExempt = map[string]string{
-	"ProposalV0": "inherits SmartBFT's pre-existing frozen encoding; see proposal.go",
+	"ProposalV0":     "inherits SmartBFT's pre-existing frozen encoding; see proposal.go",
+	"SignatureSetV0": "inherits SmartBFT's frozen PrevCommitSignatureDigest encoding; see signatures.go",
+	"SignerSigV0":    "element of SignatureSetV0; same frozen encoding",
 }
 
 func parsePackage(t *testing.T) []*ast.File {
