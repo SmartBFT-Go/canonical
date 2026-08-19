@@ -5,8 +5,10 @@ package determinism
 import (
 	"fmt"
 	"go/ast"
+	"go/token"
 	"go/types"
 	"regexp"
+	"strings"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
@@ -18,9 +20,10 @@ const doc = `reports non-canonical marshaling reaching a hash, and unordered map
 A call to proto.Marshal, json.Marshal or gob.NewEncoder is reported when it sits
 in a package that also imports a hash. That test is deliberately coarse: a
 package that hashes in one file and marshals in an unrelated one is still
-flagged. The bias is intentional. A false positive costs one //nolint with a
-written justification in review; a false negative costs a cluster-wide digest
-divergence that no test will show you.
+flagged. The bias is intentional. A false positive costs one
+//determinism:allow comment carrying a written reason; a false negative costs a
+cluster-wide digest divergence that no test will show you. A bare directive with
+no reason suppresses nothing, so the justification cannot be skipped.
 
 Calls are resolved through the type checker, not matched by name, so an aliased
 import (pb "google.golang.org/protobuf/proto") and a dot-import are both caught.
@@ -67,9 +70,10 @@ var hashPkgs = map[string]bool{
 
 func run(pass *analysis.Pass) (any, error) {
 	insp := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
+	allow := allowed(pass)
 
 	if packageHashes(pass) {
-		checkMarshal(pass, insp)
+		checkMarshal(pass, insp, allow)
 	}
 
 	core, err := regexp.Compile(detpath)
@@ -77,12 +81,12 @@ func run(pass *analysis.Pass) (any, error) {
 		return nil, fmt.Errorf("bad -detpath regexp %q: %w", detpath, err)
 	}
 	if core.MatchString(pass.Pkg.Path()) {
-		checkMapRange(pass, insp)
+		checkMapRange(pass, insp, allow)
 	}
 	return nil, nil
 }
 
-func checkMapRange(pass *analysis.Pass, insp *inspector.Inspector) {
+func checkMapRange(pass *analysis.Pass, insp *inspector.Inspector, allow map[string]bool) {
 	insp.Preorder([]ast.Node{(*ast.RangeStmt)(nil)}, func(n ast.Node) {
 		node := n.(*ast.RangeStmt)
 		if node.Key == nil {
@@ -95,18 +99,24 @@ func checkMapRange(pass *analysis.Pass, insp *inspector.Inspector) {
 		// Underlying(), not a direct assertion: type Index map[string][]byte is
 		// a *types.Named and would otherwise escape the rule.
 		if _, isMap := t.Underlying().(*types.Map); isMap {
+			if suppressed(pass, allow, node.Pos()) {
+				return
+			}
 			pass.Reportf(node.Pos(), "range over map is unordered; collect keys, slices.Sort, then iterate")
 		}
 	})
 }
 
-func checkMarshal(pass *analysis.Pass, insp *inspector.Inspector) {
+func checkMarshal(pass *analysis.Pass, insp *inspector.Inspector, allow map[string]bool) {
 	insp.Preorder([]ast.Node{(*ast.CallExpr)(nil)}, func(n ast.Node) {
 		fn := calleeFunc(pass, n.(*ast.CallExpr))
 		if fn == nil || fn.Pkg() == nil {
 			return
 		}
 		if !bannedCalls[fn.Pkg().Path()+"."+fn.Name()] {
+			return
+		}
+		if suppressed(pass, allow, n.Pos()) {
 			return
 		}
 		pass.Reportf(n.Pos(), "%s.%s in a package that hashes: encode through the canonical package instead",
@@ -138,3 +148,36 @@ func packageHashes(pass *analysis.Pass) bool {
 	}
 	return false
 }
+
+const directive = "determinism:allow"
+
+// allowed maps "file:line" for every line carrying a //determinism:allow directive
+// with a reason, and the line after it, so the comment may sit above the finding.
+func allowed(pass *analysis.Pass) map[string]bool {
+	out := map[string]bool{}
+	for _, f := range pass.Files {
+		for _, cg := range f.Comments {
+			for _, c := range cg.List {
+				txt := strings.TrimSpace(strings.TrimPrefix(c.Text, "//"))
+				if !strings.HasPrefix(txt, directive) {
+					continue
+				}
+				// A directive with no reason suppresses nothing.
+				if strings.TrimSpace(strings.TrimPrefix(txt, directive)) == "" {
+					continue
+				}
+				at := pass.Fset.Position(c.Pos())
+				out[key(at.Filename, at.Line)] = true
+				out[key(at.Filename, at.Line+1)] = true
+			}
+		}
+	}
+	return out
+}
+
+func suppressed(pass *analysis.Pass, allow map[string]bool, pos token.Pos) bool {
+	at := pass.Fset.Position(pos)
+	return allow[key(at.Filename, at.Line)]
+}
+
+func key(file string, line int) string { return fmt.Sprintf("%s:%d", file, line) }
