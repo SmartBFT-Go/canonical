@@ -7,7 +7,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"go/ast"
+	"maps"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -93,6 +96,44 @@ func mustHex(t *testing.T, name, field, s string) []byte {
 		t.Fatalf("vector %s: field %s is not hex: %v", name, field, err)
 	}
 	return b
+}
+
+// TestEveryStructureHasAVector holds the annex and the package to the same set of
+// structures. Without it a new Marshal* ships uncovered, as SignatureSetV0 did.
+func TestEveryStructureHasAVector(t *testing.T) {
+	inCode := map[string]bool{}
+	for _, f := range parsePackage(t) {
+		for _, decl := range f.Decls {
+			fd, ok := decl.(*ast.FuncDecl)
+			if !ok || fd.Recv != nil || !fd.Name.IsExported() {
+				continue
+			}
+			if name, found := strings.CutPrefix(fd.Name.Name, "Marshal"); found && name != "" {
+				inCode[name] = true
+			}
+		}
+	}
+	if len(inCode) == 0 {
+		t.Fatal("no exported Marshal* functions found; the gate would pass vacuously")
+	}
+
+	inAnnex := map[string]bool{}
+	for _, v := range loadGolden(t).Vectors {
+		inAnnex[v.Structure] = true
+	}
+
+	for _, name := range slices.Sorted(maps.Keys(inCode)) {
+		if !inAnnex[name] {
+			t.Errorf("Marshal%s has no vector in %s: WIRE-SPEC 3.3 requires an annex vector before first use, and %s is what a non-Go implementer conforms against",
+				name, vectorsPath, vectorsPath)
+		}
+	}
+	for _, name := range slices.Sorted(maps.Keys(inAnnex)) {
+		if !inCode[name] {
+			t.Errorf("%s has vectors in %s but no exported Marshal%s in the package; the annex names a structure this package cannot produce",
+				name, vectorsPath, name)
+		}
+	}
 }
 
 func genesisFromVector(t *testing.T, v derVector) GenesisV1 {
