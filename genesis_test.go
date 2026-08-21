@@ -8,11 +8,15 @@ import (
 	"testing"
 )
 
+// testKeyFill gives each member a distinct placeholder key without a narrowing
+// int64 -> byte conversion.
+var testKeyFill = []byte{0xa1, 0xb2, 0xc3, 0xd4, 0xe5, 0xf6, 0x07, 0x18}
+
 func testMember(id int64) GenesisMemberV1 {
 	return GenesisMemberV1{
 		NodeID:     id,
 		SpiffeID:   []byte("spiffe://cluster.example/node/" + strconv.FormatInt(id, 10)),
-		LeafPubKey: bytes.Repeat([]byte{byte(id)}, LeafPubKeyLen),
+		LeafPubKey: bytes.Repeat(testKeyFill[id%int64(len(testKeyFill)):][:1], LeafPubKeyLen),
 	}
 }
 
