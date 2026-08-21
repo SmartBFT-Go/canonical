@@ -137,8 +137,8 @@ Annotated breakdown of vector `proposal/v0/smartbft-reference`:
    02 01 07                          INTEGER 7                 VerificationSequence
 ```
 
-3.2.1 **`ProposalV0` has no `Version` field.** It is the single allowlisted exception to §4.1. The
-structure mirrors an encoding that already shipped in SmartBFT; adding a `Version` field would
+3.2.1 **`ProposalV0` has no `Version` field.** It is an allowlisted exception to §4.1, which lists
+them all. The structure mirrors an encoding that already shipped in SmartBFT; adding a `Version` field would
 change every digest the consensus library has ever produced. The `V0` in the name is the version
 tag, carried out of band.
 
@@ -231,12 +231,89 @@ absent one, and none is needed: a cluster with no members is expressible and is 
 genesis because it bounds the member count at every later reconfiguration, and a bound that is not
 covered by the pinned digest is a bound an operator can move.
 
+### 3.7 `SignatureSetV0`
+
+The commit signatures of the previous decision, hashed into
+`ViewMetadata.PrevCommitSignatureDigest`. The digest is §3.4's default — `SHA-256` over the
+complete DER — and every replica recomputes it over the signatures it received from the leader
+and compares. These bytes have been in ledgers since before this document existed; §3.7.3 says
+what that means.
+
+| # | Field | ASN.1 | Constraints |
+|---|---|---|---|
+| 1 | `Sigs` | SEQUENCE OF `SignerSigV0` | Producer order, **not** sorted. See §3.7.4. |
+
+`SignerSigV0`, the element type of `Sigs`:
+
+| # | Field | ASN.1 | Constraints |
+|---|---|---|---|
+| 1 | `Signer` | INTEGER | 64-bit signed, logically unsigned per §3.5. The node identifier. |
+| 2 | `Value` | OCTET STRING | The signature bytes. Opaque to this layer, and may be empty. |
+| 3 | `Msg` | OCTET STRING | The auxiliary message the signature covers. Opaque, and may be empty. |
+
+Annotated breakdown of vector `sigset/v0/three-signers`:
+
+```
+30 26                       SEQUENCE, 38 bytes
+   30 24                    SEQUENCE OF, 36 bytes    Sigs
+      30 0b                 SEQUENCE, 11 bytes       Sigs[0]
+         02 01 01           INTEGER 1                Signer
+         04 02 56 31        OCTET STRING "V1"        Value
+         04 02 4d 31        OCTET STRING "M1"        Msg
+      30 07                 SEQUENCE, 7 bytes        Sigs[1]
+         02 01 02           INTEGER 2                Signer
+         04 00              OCTET STRING, 0 bytes    Value
+         04 00              OCTET STRING, 0 bytes    Msg
+      30 0c                 SEQUENCE, 12 bytes       Sigs[2]
+         02 02 01 2c        INTEGER 300              Signer
+         04 02 56 33        OCTET STRING "V3"        Value
+         04 02 4d 33        OCTET STRING "M3"        Msg
+```
+
+3.7.1 **Neither structure has a `Version` field.** Both are allowlisted exceptions to §4.1, on the
+same grounds as §3.2.1: they reproduce an encoding SmartBFT already shipped, and adding a
+`Version` field would change every `PrevCommitSignatureDigest` already written to a ledger. The
+`V0` in the name is the version tag, carried out of band. `SignerSigV0` would additionally
+qualify under the §3.6.1 rule — it is an element of a SEQUENCE OF and never appears on the wire
+alone.
+
+3.7.2 Field order is declaration order, inherited from SmartBFT's internal `IntDoubleByte` and
+`IntDoubleBytes`. Those two types are what the pre-migration implementation marshalled, and this
+section is a transcription of their layout, not a redesign of it.
+
+3.7.3 This section and the `sigset/v0/*` vectors are a **documentation backfill**. The encoding
+shipped without them; no byte changes here, so §1.3 does not apply and the release carrying this
+section is additive. The two non-empty vectors record digests produced by the unmodified
+pre-migration implementation for those inputs, which is why they can be checked against something
+other than this package's own output.
+
+3.7.4 `Sigs` is a SEQUENCE OF but is **not** sorted, so it does not meet §2.2's sort requirement.
+The order is the producer's, it is carried alongside the signatures themselves, and the verifier
+recomputes the digest over the list in the order it received it — the same signatures in another
+order are a different digest. Recorded as an exception, not defended as a design: a v1 structure
+carrying the same data would sort by `Signer` and reject duplicates.
+
+3.7.5 An empty `Sigs` encodes as `30 02 30 00` and is pinned by vector `sigset/v0/empty`. SmartBFT
+returns a nil digest for an empty signature set without reaching the encoder, so those bytes are
+not hashed in practice; the vector exists so that an implementer does not have to guess.
+
 ## 4. The two rules
 
 ### 4.1 V-RULE
 
 **Every top-level structure begins with `Version`, and every decoder MUST reject a version it
-does not know.** `ProposalV0` (§3.2.1) is the single exception.
+does not know.** The exceptions are exhaustively:
+
+| Structure | Why | Where |
+|---|---|---|
+| `ProposalV0` | Inherits SmartBFT's frozen proposal encoding | §3.2.1 |
+| `SignatureSetV0` | Inherits SmartBFT's frozen commit-signature encoding | §3.7.1 |
+| `SignerSigV0` | Element of `SignatureSetV0`; same frozen encoding | §3.7.1 |
+| `GenesisMemberV1` | Element of `GenesisV1`; the container's `Version` governs the layout | §3.6.1 |
+
+The list is mirrored by `versionExempt` in `profile_test.go`, which fails the build for any
+exported structure not on it. Adding a row is a deliberate act with a recorded reason, and a new
+structure that fits neither category above does not get one.
 
 Attack prevented: a DER decoder that maps a SEQUENCE onto a fixed field list **silently discards
 trailing elements it was not expecting**. A v2 structure `{Root, Seq, Extra}` handed to a v1

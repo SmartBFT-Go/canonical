@@ -51,12 +51,19 @@ type vectorFields struct {
 	CARoot               string         `json:"CARoot"`
 	MaxNodes             int64          `json:"MaxNodes"`
 	Members              []vectorMember `json:"Members"`
+	Sigs                 []vectorSig    `json:"Sigs"`
 }
 
 type vectorMember struct {
 	NodeID     int64  `json:"NodeID"`
 	SpiffeID   string `json:"SpiffeID"`
 	LeafPubKey string `json:"LeafPubKey"`
+}
+
+type vectorSig struct {
+	Signer int64  `json:"Signer"`
+	Value  string `json:"Value"`
+	Msg    string `json:"Msg"`
 }
 
 type merkleVector struct {
@@ -154,6 +161,19 @@ func genesisFromVector(t *testing.T, v derVector) GenesisV1 {
 	return g
 }
 
+func sigsetFromVector(t *testing.T, v derVector) SignatureSetV0 {
+	t.Helper()
+	var s SignatureSetV0
+	for _, sig := range v.Fields.Sigs {
+		s.Sigs = append(s.Sigs, SignerSigV0{
+			Signer: sig.Signer,
+			Value:  mustHex(t, v.Name, "Value", sig.Value),
+			Msg:    mustHex(t, v.Name, "Msg", sig.Msg),
+		})
+	}
+	return s
+}
+
 // encodeVector dispatches by structure name with an explicit switch, not reflection.
 func encodeVector(t *testing.T, v derVector) []byte {
 	t.Helper()
@@ -184,6 +204,12 @@ func encodeVector(t *testing.T, v derVector) []byte {
 		b, err := MarshalGenesisV1(genesisFromVector(t, v))
 		if err != nil {
 			t.Fatalf("vector %s: MarshalGenesisV1: %v", v.Name, err)
+		}
+		return b
+	case "SignatureSetV0":
+		b, err := MarshalSignatureSetV0(sigsetFromVector(t, v))
+		if err != nil {
+			t.Fatalf("vector %s: MarshalSignatureSetV0: %v", v.Name, err)
 		}
 		return b
 	default:
@@ -223,6 +249,16 @@ func decodeVector(t *testing.T, v derVector, der []byte) []byte {
 		b, err := MarshalGenesisV1(g)
 		if err != nil {
 			t.Fatalf("vector %s: re-MarshalGenesisV1: %v", v.Name, err)
+		}
+		return b
+	case "SignatureSetV0":
+		s, err := UnmarshalSignatureSetV0(der)
+		if err != nil {
+			t.Fatalf("vector %s: UnmarshalSignatureSetV0: %v", v.Name, err)
+		}
+		b, err := MarshalSignatureSetV0(s)
+		if err != nil {
+			t.Fatalf("vector %s: re-MarshalSignatureSetV0: %v", v.Name, err)
 		}
 		return b
 	default:

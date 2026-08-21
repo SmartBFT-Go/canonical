@@ -248,6 +248,83 @@
         "      04 20 b2*32        OCTET STRING, 32 bytes   LeafPubKey",
         "    30 46 .. 02 01 02    Members[1], NodeID 2, SpiffeID \".../node/2\", LeafPubKey c3*32"
       ]
+    },
+    {
+      "name": "sigset/v0/empty",
+      "structure": "SignatureSetV0",
+      "fields": {
+        "Sigs": []
+      },
+      "der": "30023000",
+      "sha256": "f44f9ec8089698b141ce42bf06922aeeadd2307b250dc4931279c2831fd9526a",
+      "annotation": [
+        "The empty set is expressible and encodes to four bytes. SmartBFT's CommitSignaturesDigest short-circuits to a nil digest before reaching the encoder, so these bytes are never hashed in practice; the vector pins the outer wrapper so an implementer can see it around a SEQUENCE OF that happens to be empty.",
+        "30 02          SEQUENCE, 2 bytes",
+        "  30 00        SEQUENCE OF, 0 bytes     Sigs"
+      ]
+    },
+    {
+      "name": "sigset/v0/one-signer",
+      "structure": "SignatureSetV0",
+      "fields": {
+        "Sigs": [
+        {
+          "Signer": 1,
+          "Value": "5631",
+          "Msg": "4d31"
+        }
+      ]
+      },
+      "der": "300f300d300b0201010402563104024d31",
+      "sha256": "376078b3b0ae99400a035f534579a528a42479773ab94a00b41f2c563edd9eb1",
+      "annotation": [
+        "The sha256 here is the digest SmartBFT produced for this input before the migration to this package; it is the contract the structure exists to reproduce.",
+        "30 0f              SEQUENCE, 15 bytes",
+        "  30 0d            SEQUENCE OF, 13 bytes    Sigs",
+        "    30 0b          SEQUENCE, 11 bytes       Sigs[0]",
+        "      02 01 01     INTEGER 1                Signer",
+        "      04 02 5631   OCTET STRING \"V1\"        Value",
+        "      04 02 4d31   OCTET STRING \"M1\"        Msg"
+      ]
+    },
+    {
+      "name": "sigset/v0/three-signers",
+      "structure": "SignatureSetV0",
+      "fields": {
+        "Sigs": [
+        {
+          "Signer": 1,
+          "Value": "5631",
+          "Msg": "4d31"
+        },
+        {
+          "Signer": 2,
+          "Value": "",
+          "Msg": ""
+        },
+        {
+          "Signer": 300,
+          "Value": "5633",
+          "Msg": "4d33"
+        }
+      ]
+      },
+      "der": "30263024300b0201010402563104024d31300702010204000400300c0202012c0402563304024d33",
+      "sha256": "a31acfda5d67bf0c8bec72cb89f9b5abf3ea568fa6b2df6a9bb385e8baae376b",
+      "annotation": [
+        "Also a pre-migration SmartBFT digest. Signer 2 carries empty Value and Msg (an absent signature is not distinguishable from an empty one, per 2.6), and signer 300 is the first NodeID needing two INTEGER content bytes. Entry order is the caller's and is preserved, not sorted.",
+        "30 26                SEQUENCE, 38 bytes",
+        "  30 24              SEQUENCE OF, 36 bytes    Sigs",
+        "    30 0b            SEQUENCE, 11 bytes       Sigs[0] — Signer 1, \"V1\", \"M1\"",
+        "    30 07            SEQUENCE, 7 bytes        Sigs[1]",
+        "      02 01 02       INTEGER 2                Signer",
+        "      04 00          OCTET STRING, 0 bytes    Value",
+        "      04 00          OCTET STRING, 0 bytes    Msg",
+        "    30 0c            SEQUENCE, 12 bytes       Sigs[2]",
+        "      02 02 012c     INTEGER 300              Signer — two content bytes",
+        "      04 02 5633     OCTET STRING \"V3\"        Value",
+        "      04 02 4d33     OCTET STRING \"M3\"        Msg"
+      ]
     }
   ],
 
