@@ -168,6 +168,69 @@ values above 2^63-1 at construction. They are all far below that bound in practi
 plain INTEGER on the wire and avoids the arbitrary-precision encoding a true unsigned 64-bit
 value would need.
 
+### 3.6 `GenesisV1`
+
+The pinned cluster definition. Its digest is §3.4's default — `SHA-256` over the complete DER —
+and that digest is the value an operator distributes out of band for every node to check its own
+copy against. The encoding is therefore frozen on the same terms as §3.1.
+
+| # | Field | ASN.1 | Constraints |
+|---|---|---|---|
+| 1 | `Version` | INTEGER | MUST equal 1 for v1. §4.1 applies. |
+| 2 | `TrustDomain` | OCTET STRING | The SPIFFE trust domain, e.g. `cluster.example`. MUST be non-empty. |
+| 3 | `CARoot` | OCTET STRING | DER of the root certificate. Opaque to this layer. |
+| 4 | `MaxNodes` | INTEGER | 64-bit signed. MUST be ≥ 0, and MUST be ≥ the number of members. |
+| 5 | `Members` | SEQUENCE OF `GenesisMemberV1` | Sorted strictly ascending by `NodeID`. |
+
+`GenesisMemberV1`, the element type of `Members`:
+
+| # | Field | ASN.1 | Constraints |
+|---|---|---|---|
+| 1 | `NodeID` | INTEGER | 64-bit signed, logically unsigned per §3.5. MUST be ≥ 0. |
+| 2 | `SpiffeID` | OCTET STRING | `spiffe://<TrustDomain>/node/<NodeID>` as raw bytes. MUST be non-empty. |
+| 3 | `LeafPubKey` | OCTET STRING | MUST be exactly 32 bytes: an Ed25519 public key. |
+
+Annotated breakdown of vector `genesis/v1/long-form-length`:
+
+```
+30 81 cc                              SEQUENCE, 204 bytes — long form: 81 says one length byte follows
+   02 01 01                           INTEGER 1                Version
+   04 0f 636c…6c65                    OCTET STRING, 15 bytes   TrustDomain "cluster.example"
+   04 20 ca*32                        OCTET STRING, 32 bytes   CARoot
+   02 01 0a                           INTEGER 10               MaxNodes
+   30 81 90                           SEQUENCE OF, 144 bytes   Members — two members already cross 127
+      30 46                           SEQUENCE, 70 bytes       Members[0]
+         02 01 01                     INTEGER 1                NodeID
+         04 1f 7370…2f31              OCTET STRING, 31 bytes   SpiffeID "spiffe://cluster.example/node/1"
+         04 20 b2*32                  OCTET STRING, 32 bytes   LeafPubKey
+      30 46                           SEQUENCE, 70 bytes       Members[1]
+         02 01 02                     INTEGER 2                NodeID
+         04 1f 7370…2f32              OCTET STRING, 31 bytes   SpiffeID "spiffe://cluster.example/node/2"
+         04 20 c3*32                  OCTET STRING, 32 bytes   LeafPubKey
+```
+
+3.6.1 **`GenesisMemberV1` has no `Version` field.** It is an element of `Members` and never
+appears on the wire alone, so §4.1 — which binds top-level structures — is satisfied by the
+`Version` of the containing `GenesisV1`. A change to the member layout produces a new version of
+`GenesisV1`, not a version field on the member.
+
+3.6.2 `Members` is a SEQUENCE OF under §2.2, so **the producer sorts and the producer alone**. A
+conformant encoder MUST reject an unsorted or duplicated set rather than sort it, and a decoder
+MUST reject one too. Sorting on behalf of the caller would give one membership two spellings, and
+only one of them hashes to the digest the operator pinned.
+
+3.6.3 Every constraint in the two tables is checked on encode **and** on decode. The asymmetric
+alternative — validate on the way out, trust on the way in — accepts bytes this specification says
+cannot exist, and those bytes have digests of their own.
+
+3.6.4 An empty `Members` encodes as `30 00`. Per §2.6 there is no way to distinguish it from an
+absent one, and none is needed: a cluster with no members is expressible and is pinned by vector
+`genesis/v1/no-members`.
+
+3.6.5 `MaxNodes` is the cluster's reconfiguration ceiling, not its current size. It is carried in
+genesis because it bounds the member count at every later reconfiguration, and a bound that is not
+covered by the pinned digest is a bound an operator can move.
+
 ## 4. The two rules
 
 ### 4.1 V-RULE

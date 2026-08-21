@@ -138,6 +138,116 @@
         "  02 01 00             INTEGER 0                VerificationSequence",
         "Long form is minimal: 128 encodes as 81 80, never 82 00 80."
       ]
+    },
+    {
+      "name": "genesis/v1/no-members",
+      "structure": "GenesisV1",
+      "fields": {
+        "Version": 1,
+        "TrustDomain": "636c75737465722e6578616d706c65",
+        "CARoot": "cacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacaca",
+        "MaxNodes": 4,
+        "Members": []
+      },
+      "der": "303b020101040f636c75737465722e6578616d706c650420cacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacaca0201043000",
+      "sha256": "561472f04b07cb186200a212693474e212d7c059775105bf18fea469cd830f50",
+      "annotation": [
+        "30 3b                SEQUENCE, 59 bytes — every length here is short form",
+        "  02 01 01           INTEGER 1                Version",
+        "  04 0f 636c..6c65   OCTET STRING, 15 bytes   TrustDomain \"cluster.example\"",
+        "  04 20 ca*32        OCTET STRING, 32 bytes   CARoot",
+        "  02 01 04           INTEGER 4                MaxNodes — the ceiling, not the current size",
+        "  30 00              SEQUENCE OF, 0 bytes     Members — empty; per 2.6 absent and empty are the same bytes"
+      ]
+    },
+    {
+      "name": "genesis/v1/n4",
+      "structure": "GenesisV1",
+      "fields": {
+        "Version": 1,
+        "TrustDomain": "636c75737465722e6578616d706c65",
+        "CARoot": "cacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacaca",
+        "MaxNodes": 10,
+        "Members": [
+        {
+          "NodeID": 1,
+          "SpiffeID": "7370696666653a2f2f636c75737465722e6578616d706c652f6e6f64652f31",
+          "LeafPubKey": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2"
+        },
+        {
+          "NodeID": 2,
+          "SpiffeID": "7370696666653a2f2f636c75737465722e6578616d706c652f6e6f64652f32",
+          "LeafPubKey": "c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3"
+        },
+        {
+          "NodeID": 3,
+          "SpiffeID": "7370696666653a2f2f636c75737465722e6578616d706c652f6e6f64652f33",
+          "LeafPubKey": "d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4"
+        },
+        {
+          "NodeID": 4,
+          "SpiffeID": "7370696666653a2f2f636c75737465722e6578616d706c652f6e6f64652f34",
+          "LeafPubKey": "e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5"
+        }
+      ]
+      },
+      "der": "3082015d020101040f636c75737465722e6578616d706c650420cacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacaca02010a308201203046020101041f7370696666653a2f2f636c75737465722e6578616d706c652f6e6f64652f310420b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b23046020102041f7370696666653a2f2f636c75737465722e6578616d706c652f6e6f64652f320420c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c33046020103041f7370696666653a2f2f636c75737465722e6578616d706c652f6e6f64652f330420d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d43046020104041f7370696666653a2f2f636c75737465722e6578616d706c652f6e6f64652f340420e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5",
+      "sha256": "6f01053c3c3138add51b210aa00048a53bf321b942dca9783eba55637478dc56",
+      "annotation": [
+        "A four-node cluster, the smallest that tolerates one Byzantine fault.",
+        "30 82 01 5d              SEQUENCE, 349 bytes — past 255, so 82 and two length bytes",
+        "  02 01 01               INTEGER 1                Version",
+        "  04 0f 636c..6c65       OCTET STRING, 15 bytes   TrustDomain",
+        "  04 20 ca*32            OCTET STRING, 32 bytes   CARoot",
+        "  02 01 0a               INTEGER 10               MaxNodes",
+        "  30 82 01 20            SEQUENCE OF, 288 bytes   Members, ascending by NodeID",
+        "    30 46                SEQUENCE, 70 bytes       Members[0]",
+        "      02 01 01           INTEGER 1                NodeID",
+        "      04 1f 7370..2f31   OCTET STRING, 31 bytes   SpiffeID \"spiffe://cluster.example/node/1\"",
+        "      04 20 b2*32        OCTET STRING, 32 bytes   LeafPubKey",
+        "    30 46 .. 02 01 02    Members[1], NodeID 2, LeafPubKey c3*32",
+        "    30 46 .. 02 01 03    Members[2], NodeID 3, LeafPubKey d4*32",
+        "    30 46 .. 02 01 04    Members[3], NodeID 4, LeafPubKey e5*32",
+        "Swapping any two members changes the bytes and therefore the pinned digest; the producer sorts, and an unsorted set is refused rather than sorted."
+      ]
+    },
+    {
+      "name": "genesis/v1/long-form-length",
+      "structure": "GenesisV1",
+      "fields": {
+        "Version": 1,
+        "TrustDomain": "636c75737465722e6578616d706c65",
+        "CARoot": "cacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacaca",
+        "MaxNodes": 10,
+        "Members": [
+        {
+          "NodeID": 1,
+          "SpiffeID": "7370696666653a2f2f636c75737465722e6578616d706c652f6e6f64652f31",
+          "LeafPubKey": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2"
+        },
+        {
+          "NodeID": 2,
+          "SpiffeID": "7370696666653a2f2f636c75737465722e6578616d706c652f6e6f64652f32",
+          "LeafPubKey": "c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3"
+        }
+      ]
+      },
+      "der": "3081cc020101040f636c75737465722e6578616d706c650420cacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacaca02010a3081903046020101041f7370696666653a2f2f636c75737465722e6578616d706c652f6e6f64652f310420b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b23046020102041f7370696666653a2f2f636c75737465722e6578616d706c652f6e6f64652f320420c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3",
+      "sha256": "14d1d02e3fcc211f745914cc0c4f42f61c1fe9b84d26eeefb6dde6b20b5d4c6c",
+      "annotation": [
+        "Two members are already enough to push Members past 127 content bytes, which is where the length form changes.",
+        "30 81 cc                 SEQUENCE, 204 bytes — 81 says one length byte follows",
+        "  02 01 01               INTEGER 1                Version",
+        "  04 0f 636c..6c65       OCTET STRING, 15 bytes   TrustDomain",
+        "  04 20 ca*32            OCTET STRING, 32 bytes   CARoot",
+        "  02 01 0a               INTEGER 10               MaxNodes",
+        "  30 81 90               SEQUENCE OF, 144 bytes   Members — long form; 144 encodes as 81 90, never 82 00 90",
+        "    30 46                SEQUENCE, 70 bytes       Members[0]",
+        "      02 01 01           INTEGER 1                NodeID",
+        "      04 1f 7370..2f31   OCTET STRING, 31 bytes   SpiffeID \"spiffe://cluster.example/node/1\"",
+        "      04 20 b2*32        OCTET STRING, 32 bytes   LeafPubKey",
+        "    30 46 .. 02 01 02    Members[1], NodeID 2, SpiffeID \".../node/2\", LeafPubKey c3*32"
+      ]
     }
   ],
 

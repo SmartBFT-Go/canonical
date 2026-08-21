@@ -36,14 +36,24 @@ type derVector struct {
 }
 
 type vectorFields struct {
-	Version              int64  `json:"Version"`
-	PrevStateRoot        string `json:"PrevStateRoot"`
-	PrevSeq              int64  `json:"PrevSeq"`
-	ConsensusTime        int64  `json:"ConsensusTime"`
-	Payload              string `json:"Payload"`
-	Header               string `json:"Header"`
-	Metadata             string `json:"Metadata"`
-	VerificationSequence int64  `json:"VerificationSequence"`
+	Version              int64          `json:"Version"`
+	PrevStateRoot        string         `json:"PrevStateRoot"`
+	PrevSeq              int64          `json:"PrevSeq"`
+	ConsensusTime        int64          `json:"ConsensusTime"`
+	Payload              string         `json:"Payload"`
+	Header               string         `json:"Header"`
+	Metadata             string         `json:"Metadata"`
+	VerificationSequence int64          `json:"VerificationSequence"`
+	TrustDomain          string         `json:"TrustDomain"`
+	CARoot               string         `json:"CARoot"`
+	MaxNodes             int64          `json:"MaxNodes"`
+	Members              []vectorMember `json:"Members"`
+}
+
+type vectorMember struct {
+	NodeID     int64  `json:"NodeID"`
+	SpiffeID   string `json:"SpiffeID"`
+	LeafPubKey string `json:"LeafPubKey"`
 }
 
 type merkleVector struct {
@@ -85,6 +95,24 @@ func mustHex(t *testing.T, name, field, s string) []byte {
 	return b
 }
 
+func genesisFromVector(t *testing.T, v derVector) GenesisV1 {
+	t.Helper()
+	g := GenesisV1{
+		Version:     v.Fields.Version,
+		TrustDomain: mustHex(t, v.Name, "TrustDomain", v.Fields.TrustDomain),
+		CARoot:      mustHex(t, v.Name, "CARoot", v.Fields.CARoot),
+		MaxNodes:    v.Fields.MaxNodes,
+	}
+	for _, m := range v.Fields.Members {
+		g.Members = append(g.Members, GenesisMemberV1{
+			NodeID:     m.NodeID,
+			SpiffeID:   mustHex(t, v.Name, "SpiffeID", m.SpiffeID),
+			LeafPubKey: mustHex(t, v.Name, "LeafPubKey", m.LeafPubKey),
+		})
+	}
+	return g
+}
+
 // encodeVector dispatches by structure name with an explicit switch, not reflection.
 func encodeVector(t *testing.T, v derVector) []byte {
 	t.Helper()
@@ -109,6 +137,12 @@ func encodeVector(t *testing.T, v derVector) []byte {
 		})
 		if err != nil {
 			t.Fatalf("vector %s: MarshalProposalV0: %v", v.Name, err)
+		}
+		return b
+	case "GenesisV1":
+		b, err := MarshalGenesisV1(genesisFromVector(t, v))
+		if err != nil {
+			t.Fatalf("vector %s: MarshalGenesisV1: %v", v.Name, err)
 		}
 		return b
 	default:
@@ -138,6 +172,16 @@ func decodeVector(t *testing.T, v derVector, der []byte) []byte {
 		b, err := MarshalProposalV0(p)
 		if err != nil {
 			t.Fatalf("vector %s: re-MarshalProposalV0: %v", v.Name, err)
+		}
+		return b
+	case "GenesisV1":
+		g, err := UnmarshalGenesisV1(der)
+		if err != nil {
+			t.Fatalf("vector %s: UnmarshalGenesisV1: %v", v.Name, err)
+		}
+		b, err := MarshalGenesisV1(g)
+		if err != nil {
+			t.Fatalf("vector %s: re-MarshalGenesisV1: %v", v.Name, err)
 		}
 		return b
 	default:
