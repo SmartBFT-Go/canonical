@@ -148,6 +148,18 @@ func invalidGenesis() []struct {
 	noSpiffeID := testGenesis(1)
 	noSpiffeID.Members[0].SpiffeID = nil
 
+	foreignTrustDomain := testGenesis(1)
+	foreignTrustDomain.Members[0].SpiffeID = []byte("spiffe://other.example/node/1")
+
+	otherNodeID := testGenesis(2)
+	otherNodeID.Members[0].SpiffeID = bytes.Clone(otherNodeID.Members[1].SpiffeID)
+
+	notSpiffeScheme := testGenesis(1)
+	notSpiffeScheme.Members[0].SpiffeID = []byte("https://cluster.example/node/1")
+
+	trailingSlash := testGenesis(1)
+	trailingSlash.Members[0].SpiffeID = append(bytes.Clone(trailingSlash.Members[0].SpiffeID), '/')
+
 	negativeNodeID := testGenesis(1)
 	negativeNodeID.Members[0].NodeID = -1
 
@@ -172,6 +184,10 @@ func invalidGenesis() []struct {
 		{"leaf public key one byte long", longKey, ErrLength},
 		{"empty trust domain", noTrustDomain, ErrEmpty},
 		{"empty spiffe id", noSpiffeID, ErrEmpty},
+		{"spiffe id naming another trust domain", foreignTrustDomain, ErrFormat},
+		{"spiffe id naming another node", otherNodeID, ErrFormat},
+		{"spiffe id with a non-spiffe scheme", notSpiffeScheme, ErrFormat},
+		{"spiffe id with a trailing slash", trailingSlash, ErrFormat},
 		{"negative node id", negativeNodeID, ErrRange},
 		{"negative max nodes", negativeMaxNodes, ErrRange},
 		{"members out of order", unsorted, ErrOrder},

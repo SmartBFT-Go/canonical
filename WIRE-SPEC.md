@@ -187,7 +187,7 @@ copy against. The encoding is therefore frozen on the same terms as §3.1.
 | # | Field | ASN.1 | Constraints |
 |---|---|---|---|
 | 1 | `NodeID` | INTEGER | 64-bit signed, logically unsigned per §3.5. MUST be ≥ 0. |
-| 2 | `SpiffeID` | OCTET STRING | `spiffe://<TrustDomain>/node/<NodeID>` as raw bytes. MUST be non-empty. |
+| 2 | `SpiffeID` | OCTET STRING | MUST equal `spiffe://<TrustDomain>/node/<NodeID>` byte for byte, with this structure's `TrustDomain` and the member's own `NodeID` in decimal without leading zeros. See §3.6.6. |
 | 3 | `LeafPubKey` | OCTET STRING | MUST be exactly 32 bytes: an Ed25519 public key. |
 
 Annotated breakdown of vector `genesis/v1/long-form-length`:
@@ -230,6 +230,14 @@ absent one, and none is needed: a cluster with no members is expressible and is 
 3.6.5 `MaxNodes` is the cluster's reconfiguration ceiling, not its current size. It is carried in
 genesis because it bounds the member count at every later reconfiguration, and a bound that is not
 covered by the pinned digest is a bound an operator can move.
+
+3.6.6 `SpiffeID` is **derived, not merely shaped**. Both of its variable parts are fields of this
+same structure, so each member has exactly one legal identity: an implementation computes the
+value and compares, rather than parsing whatever it was handed. Accepting a member whose
+`SpiffeID` names a different node or a foreign trust domain would put two identities for one node
+under the pinned digest, and the identity is what the leaf certificate is later checked against.
+`CARoot` is the only cell in either table with no constraint on its content — §3.6's table calls it
+opaque, this layer does not interpret certificates, and it stays exempt.
 
 ### 3.7 `SignatureSetV0`
 

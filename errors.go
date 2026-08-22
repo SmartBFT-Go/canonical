@@ -11,5 +11,6 @@ var (
 	ErrRange        = errors.New("canonical: value out of representable range")
 	ErrLength       = errors.New("canonical: fixed-width field has the wrong length")
 	ErrEmpty        = errors.New("canonical: required field is empty")
+	ErrFormat       = errors.New("canonical: field does not have its required value")
 	ErrOrder        = errors.New("canonical: SEQUENCE OF is not sorted strictly ascending")
 )

@@ -1,5 +1,10 @@
 package canonical
 
+import (
+	"bytes"
+	"strconv"
+)
+
 // LeafPubKeyLen is the fixed width of a member's Ed25519 public key, in bytes.
 const LeafPubKeyLen = 32
 
@@ -9,7 +14,7 @@ const LeafPubKeyLen = 32
 // alone, so the containing structure's Version already governs its layout.
 type GenesisMemberV1 struct {
 	NodeID     int64  // logically unsigned, range-checked here; see WIRE-SPEC 3.5
-	SpiffeID   []byte // "spiffe://<trust-domain>/node/<id>"; string is banned by 2.3
+	SpiffeID   []byte // exactly spiffeIDV1 of the two fields; string is banned by 2.3
 	LeafPubKey []byte // exactly LeafPubKeyLen bytes
 }
 
@@ -66,9 +71,22 @@ func checkGenesisV1(g GenesisV1) error {
 		if len(m.SpiffeID) == 0 {
 			return ErrEmpty
 		}
+		if !bytes.Equal(m.SpiffeID, spiffeIDV1(g.TrustDomain, m.NodeID)) {
+			return ErrFormat
+		}
 		if len(m.LeafPubKey) != LeafPubKeyLen {
 			return ErrLength
 		}
 	}
 	return nil
+}
+
+// WIRE-SPEC 3.6 gives the SpiffeID's value, not merely its shape, so the one legal
+// spelling is derived here rather than pattern-matched.
+func spiffeIDV1(trustDomain []byte, nodeID int64) []byte {
+	id := make([]byte, 0, len("spiffe://")+len(trustDomain)+len("/node/")+20)
+	id = append(id, "spiffe://"...)
+	id = append(id, trustDomain...)
+	id = append(id, "/node/"...)
+	return strconv.AppendInt(id, nodeID, 10)
 }
