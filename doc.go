@@ -52,6 +52,12 @@
 // over a structure that decodes identically. The unexported wrappers in asn1.go are the
 // only asn1.Marshal and asn1.Unmarshal call sites permitted anywhere in the system.
 //
+// The same malleability exists one level in: asn1.Unmarshal drops an unexpected element
+// inside any SEQUENCE and reports no leftovers at all. So every decode re-encodes what
+// it decoded and returns ErrNonCanonical unless the result is byte-identical to its
+// input. Accepted bytes are exactly the bytes this package emits, at every depth; see
+// WIRE-SPEC.md 4.2.1.
+//
 // # Frozen v1
 //
 // Once a structure's encoding ships, its bytes never change. New fields mean a new

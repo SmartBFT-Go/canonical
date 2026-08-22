@@ -218,53 +218,62 @@ func encodeVector(t *testing.T, v derVector) []byte {
 	}
 }
 
-func decodeVector(t *testing.T, v derVector, der []byte) []byte {
+// roundTripVector decodes der with the structure's exported Unmarshal and returns that
+// decode error; on success it re-encodes so callers can compare bytes.
+func roundTripVector(t *testing.T, v derVector, der []byte) ([]byte, error) {
 	t.Helper()
 	switch v.Structure {
 	case "Header":
 		h, err := UnmarshalHeader(der)
 		if err != nil {
-			t.Fatalf("vector %s: UnmarshalHeader: %v", v.Name, err)
+			return nil, err
 		}
 		b, err := MarshalHeader(h)
-		if err != nil {
-			t.Fatalf("vector %s: re-MarshalHeader: %v", v.Name, err)
-		}
-		return b
+		return reMarshal(t, v.Name, b, err)
 	case "ProposalV0":
 		p, err := UnmarshalProposalV0(der)
 		if err != nil {
-			t.Fatalf("vector %s: UnmarshalProposalV0: %v", v.Name, err)
+			return nil, err
 		}
 		b, err := MarshalProposalV0(p)
-		if err != nil {
-			t.Fatalf("vector %s: re-MarshalProposalV0: %v", v.Name, err)
-		}
-		return b
+		return reMarshal(t, v.Name, b, err)
 	case "GenesisV1":
 		g, err := UnmarshalGenesisV1(der)
 		if err != nil {
-			t.Fatalf("vector %s: UnmarshalGenesisV1: %v", v.Name, err)
+			return nil, err
 		}
 		b, err := MarshalGenesisV1(g)
-		if err != nil {
-			t.Fatalf("vector %s: re-MarshalGenesisV1: %v", v.Name, err)
-		}
-		return b
+		return reMarshal(t, v.Name, b, err)
 	case "SignatureSetV0":
 		s, err := UnmarshalSignatureSetV0(der)
 		if err != nil {
-			t.Fatalf("vector %s: UnmarshalSignatureSetV0: %v", v.Name, err)
+			return nil, err
 		}
 		b, err := MarshalSignatureSetV0(s)
-		if err != nil {
-			t.Fatalf("vector %s: re-MarshalSignatureSetV0: %v", v.Name, err)
-		}
-		return b
+		return reMarshal(t, v.Name, b, err)
 	default:
 		t.Fatalf("vector %s: unknown structure %q", v.Name, v.Structure)
-		return nil
+		return nil, nil
 	}
+}
+
+// A value that just decoded must re-encode, so a failure here is a package bug rather
+// than a verdict on the input.
+func reMarshal(t *testing.T, name string, b []byte, err error) ([]byte, error) {
+	t.Helper()
+	if err != nil {
+		t.Fatalf("vector %s: re-encoding a decoded value failed: %v", name, err)
+	}
+	return b, nil
+}
+
+func decodeVector(t *testing.T, v derVector, der []byte) []byte {
+	t.Helper()
+	b, err := roundTripVector(t, v, der)
+	if err != nil {
+		t.Fatalf("vector %s: Unmarshal%s: %v", v.Name, v.Structure, err)
+	}
+	return b
 }
 
 func TestGoldenVectors(t *testing.T) {
@@ -363,6 +372,123 @@ func TestVectorRules(t *testing.T) {
 			t.Errorf("R-RULE: vector %s with a trailing byte gave %v, want ErrTrailing", v.Name, err)
 		}
 	}
+}
+
+// TestVectorsAreNotMalleable is the annex-driven half of the canonical-decode rule
+// (WIRE-SPEC 4.2.1). Every vector, every SEQUENCE, every depth: one authorised value
+// must have exactly one accepted encoding, so a second spelling has to be refused.
+func TestVectorsAreNotMalleable(t *testing.T) {
+	// An element no field list expects. encoding/asn1 drops it silently, which is the
+	// behaviour this rule exists to catch.
+	extra := []byte{0x02, 0x01, 0x63}
+
+	for _, v := range loadGolden(t).Vectors {
+		t.Run(v.Name, func(t *testing.T) {
+			der := mustHex(t, v.Name, "der", v.DER)
+			if _, err := roundTripVector(t, v, der); err != nil {
+				t.Fatalf("the canonical bytes must decode: %v", err)
+			}
+
+			nodes := parseTLVs(t, v.Name, der)
+			seqs := 0
+			if got := spliceTLVs(nodes, -1, nil, &seqs); !bytes.Equal(got, der) {
+				t.Fatalf("the TLV walker does not reproduce the vector, so its splices prove nothing:\ngot  %x\nwant %x", got, der)
+			}
+			if seqs == 0 {
+				t.Fatalf("no SEQUENCE found in %x; nothing was tested", der)
+			}
+
+			for i := range seqs {
+				n := 0
+				forged := spliceTLVs(nodes, i, extra, &n)
+				if bytes.Equal(forged, der) {
+					t.Fatalf("splice into SEQUENCE %d changed nothing", i)
+				}
+				if _, err := roundTripVector(t, v, forged); err == nil {
+					t.Errorf(`SEQUENCE %d of %d accepts a spliced element, so %s is malleable.
+Two byte strings decode to one value and hash differently, which breaks every
+deduplication, equivocation check and signature scope keyed on the digest.
+See WIRE-SPEC.md 4.2.1.
+forged: %x`, i, seqs, v.Structure, forged)
+				}
+			}
+		})
+	}
+}
+
+// tlv is one parsed DER element. Only SEQUENCEs are descended into; every other tag in
+// the profile is primitive.
+type tlv struct {
+	tag         byte
+	constructed bool
+	content     []byte
+	children    []tlv
+}
+
+func parseTLVs(t *testing.T, name string, b []byte) []tlv {
+	t.Helper()
+	var out []tlv
+	for len(b) > 0 {
+		if len(b) < 2 {
+			t.Fatalf("vector %s: truncated TLV header at %x", name, b)
+		}
+		hdr, n := 2, int(b[1])
+		if n&0x80 != 0 {
+			w := n & 0x7f
+			if w == 0 || w > 4 || len(b) < 2+w {
+				t.Fatalf("vector %s: bad length octets at %x", name, b)
+			}
+			hdr, n = 2+w, 0
+			for _, c := range b[2 : 2+w] {
+				n = n<<8 | int(c)
+			}
+		}
+		if len(b) < hdr+n {
+			t.Fatalf("vector %s: TLV claims %d content bytes, %d remain", name, n, len(b)-hdr)
+		}
+		node := tlv{tag: b[0], constructed: b[0] == 0x30}
+		if node.constructed {
+			node.children = parseTLVs(t, name, b[hdr:hdr+n])
+		} else {
+			node.content = b[hdr : hdr+n]
+		}
+		out = append(out, node)
+		b = b[hdr+n:]
+	}
+	return out
+}
+
+// spliceTLVs re-encodes nodes with extra appended inside the target'th SEQUENCE in
+// pre-order, recomputing every enclosing length. target -1 splices nothing; seq returns
+// the number of SEQUENCEs seen.
+func spliceTLVs(nodes []tlv, target int, extra []byte, seq *int) []byte {
+	var out []byte
+	for _, n := range nodes {
+		body := n.content
+		if n.constructed {
+			mine := *seq
+			*seq++
+			body = spliceTLVs(n.children, target, extra, seq)
+			if mine == target {
+				body = append(body, extra...)
+			}
+		}
+		out = append(out, n.tag)
+		out = append(out, derLength(len(body))...)
+		out = append(out, body...)
+	}
+	return out
+}
+
+func derLength(n int) []byte {
+	if n < 0x80 {
+		return []byte{byte(n & 0x7f)}
+	}
+	var octets []byte
+	for v := n; v > 0; v >>= 8 {
+		octets = append([]byte{byte(v & 0xff)}, octets...)
+	}
+	return append([]byte{byte(len(octets)&0x7f) | 0x80}, octets...)
 }
 
 func child(t *testing.T, name, field, s string) [32]byte {

@@ -338,11 +338,31 @@ the digest.
 
 An implementation MUST treat leftover bytes as a decode error, not as a warning.
 
+4.2.1 **The same rule binds inside the structure, at every nesting depth.** Bytes left after the
+outer SEQUENCE are only the outermost case of one malleability. A decoder that maps a SEQUENCE
+onto a fixed field list stops when the list runs out and reports *no* leftovers, because the
+surplus element sat inside that SEQUENCE's own length: `30 2e … 02 01 63` decodes to the same
+`Header` as `30 2b …`, hashes differently, and hands nothing back to the caller to complain
+about. The rule is therefore stated on the whole encoding: **an accepted input MUST be the exact
+byte string this specification encodes that value to.** Any other byte string decoding to the same
+value MUST be rejected, whichever SEQUENCE it hides in. The profile of §2 is what makes this
+statable — one value has one encoding — and the cheapest implementation of it is to re-encode
+what was just decoded and require the result to equal the input.
+
+4.2.2 This is a conformance requirement, not a Go implementation detail. An implementation that
+accepts a spliced encoding reproduces every vector in the annex and still disagrees with this one
+on the *set of accepted inputs*, which is precisely where an attacker works: one authorised value,
+two byte strings, two digests, two nodes that no longer agree. A non-Go implementation is
+conformant only if it rejects the same inputs, and §4.3 says how to derive them.
+
 ### 4.3 Both rules are pinned by the annex
 
 `TestVectorRules` takes each `Header` vector's real bytes, increments the `Version` content byte,
-and requires a version error; then appends `0xff` and requires a trailing-bytes error. A
-conformant implementation SHOULD run the same two derivations over the annex.
+and requires a version error; then appends `0xff` and requires a trailing-bytes error.
+`TestVectorsAreNotMalleable` takes every vector, walks every SEQUENCE at every depth, splices an
+unexpected `02 01 63` into it with the enclosing lengths recomputed, and requires a decode error
+for each — 4 forgeries for a two-member `GenesisV1`, one per SEQUENCE. A conformant implementation
+SHOULD run the same three derivations over the annex; they need no input beyond the file itself.
 
 ## 5. Merkle node hashing
 

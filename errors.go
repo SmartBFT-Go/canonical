@@ -6,8 +6,10 @@ import "errors"
 var (
 	ErrVersion  = errors.New("canonical: unknown structure version")
 	ErrTrailing = errors.New("canonical: trailing bytes after structure")
-	ErrRange    = errors.New("canonical: value out of representable range")
-	ErrLength   = errors.New("canonical: fixed-width field has the wrong length")
-	ErrEmpty    = errors.New("canonical: required field is empty")
-	ErrOrder    = errors.New("canonical: SEQUENCE OF is not sorted strictly ascending")
+	// ErrNonCanonical rejects input that decodes but is not the encoding this package emits.
+	ErrNonCanonical = errors.New("canonical: input is not the canonical encoding of its value")
+	ErrRange        = errors.New("canonical: value out of representable range")
+	ErrLength       = errors.New("canonical: fixed-width field has the wrong length")
+	ErrEmpty        = errors.New("canonical: required field is empty")
+	ErrOrder        = errors.New("canonical: SEQUENCE OF is not sorted strictly ascending")
 )
