@@ -98,4 +98,53 @@ if grep -q "range over map is unordered" <<<"$out"; then
     fail "the map-range rule reported outside the deterministic core"
 fi
 
+# --- the cross-language conformance checker, on a deliberately broken annex ---
+
+annex="$root/testdata/vectors.json"
+scratch="$work/vectors.json"
+
+mutate() {
+    python3 - "$annex" "$scratch" "$1" <<'EOF'
+import hashlib
+import json
+import sys
+
+src, dst, case = sys.argv[1], sys.argv[2], sys.argv[3]
+annex = json.load(open(src))
+for v in annex["vectors"]:
+    # One byte of Payload: der alone changes, so the fields object catches it.
+    if case == "der" and v["name"] == "signed/v1/commit":
+        der = bytearray.fromhex(v["der"])
+        der[-1] ^= 0xff
+        v["der"] = der.hex()
+    # One bit of Value, with fields and sha256 kept consistent, so only the
+    # signature is wrong and nothing else can report the failure first.
+    if case == "value" and v["name"] == "blob/v1/signed-by-test-key":
+        der = bytearray.fromhex(v["der"])
+        der[-64] ^= 0x01
+        v["der"] = der.hex()
+        v["fields"]["Value"] = bytes(der[-64:]).hex()
+        v["sha256"] = hashlib.sha256(der).hexdigest()
+json.dump(annex, open(dst, "w"))
+EOF
+}
+
+run_verifier() {
+    rc=0
+    mutate "$1"
+    out="$(python3 "$root/ci/verify_vectors.py" "$scratch" 2>&1)" || rc=$?
+}
+
+echo "==> the cross-verifier on a mutated der"
+run_verifier der
+[ "$rc" -eq 1 ] || fail "expected verify_vectors.py exit 1, got $rc"
+grep -q "field Payload: der decodes to" <<<"$out" ||
+    fail "the cross-verifier did NOT report the field the mutated der disagrees on"
+
+echo "==> the cross-verifier on a flipped signature bit"
+run_verifier value
+[ "$rc" -eq 1 ] || fail "expected verify_vectors.py exit 1, got $rc"
+grep -q "Ed25519 signature does not verify over the reconstructed SignedV1 envelope" <<<"$out" ||
+    fail "the cross-verifier did NOT reject a signature with one flipped bit"
+
 echo "both gates fired as expected; scoping confirmed"

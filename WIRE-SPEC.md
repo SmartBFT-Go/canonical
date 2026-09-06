@@ -22,6 +22,23 @@ implementation is conformant iff it reproduces every vector in that file: for ea
 `vectors`, the DER hex in `der` and its SHA-256 in `sha256`; for each entry in `merkle`, the
 32-byte digest in `hash`.
 
+1.4.1 An entry in `vectors` carries `name`, `structure`, `fields`, `der`, `sha256` and
+`annotation`. **`fields` is normative**: it is the value `der` MUST decode to, and an
+implementation that reproduces `der` without agreeing with `fields` has reproduced a hex string
+rather than a structure. Its representation is fixed — a byte string is lowercase hex with no
+separator, an INTEGER is a JSON number, a `SEQUENCE OF` is a JSON array, and an element type is a
+JSON object keyed by field name. `structure` names the §3 subsection the entry encodes.
+
+1.4.2 `fields` MAY also carry a value that is **not** a field of the structure, where a verifier
+needs it and the wire does not transmit it. There are exactly two, both on a `SignedBlobV1` entry:
+`GenesisDigest` and `PubKey`, which §3.9.1 says the verifier supplies from its own genesis rather
+than reads from the blob. An implementation MUST NOT treat either as a decoded field. A key that
+is neither a field of `structure` nor one of these two is an error in the annex.
+
+1.4.3 An entry in `merkle` carries `name`, `fn`, `treeID`, `depth`, `hash` and the inputs `fn`
+names: `key` and `val` for a leaf, `left` and `right` for an internal node, neither for an empty
+one.
+
 1.5 The `annotation` arrays in the annex are informative, not normative. They exist so a vector
 can be reviewed in a diff without decoding hex by hand.
 
@@ -45,7 +62,7 @@ particular encoder. A conformant implementation MUST restrict itself to the same
 | 64-bit signed integer | INTEGER | `02 <len> <minimal signed big-endian>` |
 | boolean | BOOLEAN | `01 01 00` false, `01 01 ff` true |
 | nested structure | SEQUENCE | `30 <len> <fields in declaration order>` |
-| homogeneous list | SEQUENCE OF | `30 <len> <elements>` — the producer MUST sort deterministically before encoding |
+| homogeneous list | SEQUENCE OF | `30 <len> <elements>` — the producer MUST sort deterministically before encoding. Two structures carve out an exception and each says why: §3.7.4 and §3.11.3 |
 
 2.3 Banned, with the reason for each ban:
 
@@ -72,6 +89,19 @@ length 256..65535  long form, 0x82 + 2 bytes: 82 01 00      = 256
 `81 80` is the only valid encoding of length 128. `82 00 80` MUST be rejected. Indefinite length
 (`80` … `00 00`) MUST be rejected.
 
+2.4.1 The long form is the general DER one and is not limited to the three rows above: `0x8n`
+introduces `n` length octets. Two rules make it unambiguous and both MUST be enforced — the first
+length octet MUST NOT be zero, and the encoded value MUST NOT fit a shorter form, so `82 00 80` and
+`82 00 2b` are both rejected for the second reason as well as the first. `0xff` is reserved by
+X.690 and MUST be rejected.
+
+2.4.2 An implementation MAY refuse a length beyond a ceiling rather than allocate against it, and
+that ceiling MUST be documented. The reference implementation's is 2^23 bytes;
+`ci/verify_vectors.py` refuses more than four length octets. Two implementations disagreeing about
+where the ceiling sits disagree about the set of accepted inputs, which §4.2.2 says is exactly
+where an attacker works — so it is a stated property, not a private choice. Nothing this system
+encodes comes near either bound.
+
 2.5 INTEGER content MUST be minimal two's-complement big-endian, and INTEGER is **signed**:
 
 ```
@@ -82,7 +112,8 @@ length 256..65535  long form, 0x82 + 2 bytes: 82 01 00      = 256
 2^63-1 -> 02 08 7fffffffffffffff
 ```
 
-`02 02 00 01` (non-minimal 1) MUST be rejected.
+`02 02 00 01` (non-minimal 1) MUST be rejected. INTEGER content MUST be at least one octet:
+`02 00` is not the encoding of any value, 0 included.
 
 2.6 An empty byte string encodes to `04 00`. A conformant implementation MUST NOT attempt to
 distinguish an absent byte string from an empty one — the encoding cannot express the
@@ -365,6 +396,16 @@ verifier and never transmitted — see §3.9.1.
 carries §3.10. Purpose 2 carries whatever the caller handed to `Sign` and this document does not
 constrain it. Purpose 3 carries §3.11 and purpose 4 carries §3.12.
 
+**The mapping binds the producer of an envelope and the verifier of that purpose. It does not bind
+this layer**: an encoder or decoder of `SignedV1` MUST NOT parse `Payload`, whatever the purpose.
+Purpose 2 settles the point by itself — no encoder can validate an argument this document declines
+to constrain — and the alternative puts four structure parsers inside one encoder. Annex vectors
+`signed/v1/commit`, `signed/v1/opaque`, `signed/v1/client-request`, `signed/v1/read-index` and
+`signed/v1/long-form-length` accordingly carry a deliberately opaque `Payload`: they exercise the
+envelope's own encoding and §3.8.3's purpose separation, and they are not examples of a
+well-formed system envelope. `blob/v1/basic` and `blob/v1/signed-by-test-key` are, because §3.9's
+table requires a real payload.
+
 3.8.6 Every constraint in the table is checked on encode **and** on decode, on §3.6.3's grounds. A
 verifier reconstructs this envelope rather than receiving it, so what it reconstructs must be
 something a signer could have emitted.
@@ -418,7 +459,15 @@ alongside it.
 have to reject on its own terms, and rejecting it once here keeps that check out of four
 verifiers.
 
-3.9.5 Every constraint in the table is checked on encode **and** on decode, on §3.6.3's grounds.
+3.9.5 Every constraint in the table is checked on encode **and** on decode, on §3.6.3's grounds —
+`Payload`'s content excepted, per §3.9.6.
+
+3.9.6 **`Payload` MUST be the DER of the structure §3.8.5 maps to `Purpose`**, purpose 2 excepted
+because §3.8.5 leaves it unconstrained. Unlike §3.8.5's envelope a blob always carries a real
+payload, so the rule is checkable here — but it binds the producer, and a decoder of the container
+is no more required to parse `Payload` than §3.8.5's is. A conformance checker over the annex
+SHOULD check it, and `ci/verify_vectors.py` does: `blob/v1/basic` decodes as the `CommitPayloadV1`
+purpose 1 names, and `blob/v1/signed-by-test-key` as the `ReadIndexV1` purpose 4 names.
 
 ### 3.10 `CommitPayloadV1`
 
@@ -600,7 +649,7 @@ them open:
 |---|---|---|---|
 | 1 | `Signer` | INTEGER | The consenter's node identifier. |
 | 2 | `Value` | OCTET STRING | MUST be exactly 64 bytes: an Ed25519 signature. See §3.13.1. |
-| 3 | `Msg` | OCTET STRING | The `CommitPayloadV1` of §3.10, DER. MUST be non-empty. |
+| 3 | `Msg` | OCTET STRING | The `CommitPayloadV1` of §3.10, DER. MUST be non-empty. Opaque to this layer; see §3.13.7. |
 
 Annotated breakdown of vector `commit-cert/v1/n4-q3`:
 
@@ -626,7 +675,8 @@ marshals it, and verifies `Value` as an Ed25519 signature over exactly those byt
 signer's pinned public key from `GenesisV1`. The envelope is never transmitted, here or anywhere;
 this is §3.9.1's rule applied to a structure that carries several signatures instead of one. A
 client MUST also check that the `ProposalDigest` inside each `Msg` equals the certificate's own
-`ProposalDigest`, or the container's digest is decorative.
+`ProposalDigest`, or the container's digest is decorative. That check is the client's, not the
+container's; §3.13.7 says why.
 
 3.13.2 **`Sigs` is strictly ascending by `Signer`, and duplicates are rejected — on encode and on
 decode.** This is §2.2's producer-sorts rule with no exception, which is the opposite of §3.7.4.
@@ -653,7 +703,15 @@ threshold.
 verified by anyone, so rejecting it once here keeps that check out of every client.
 
 3.13.6 Every constraint in the two tables is checked on encode **and** on decode, on §3.6.3's
-grounds.
+grounds — `Msg`'s content excepted, per §3.13.7.
+
+3.13.7 **`Msg` is not parsed by this layer.** It belongs to `SignerSigV0`, a frozen v0 element type
+whose `Msg` §3.7 leaves opaque and may leave empty, so §3.13 cannot tighten how it is *parsed*
+without changing what `SignatureSetV0` accepts. A producer MUST put a `CommitPayloadV1` there and a
+verifying client MUST read one and apply §3.13.1; an encoder and a decoder of the container check
+only that it is non-empty. Vector `commit-cert/v1/long-form-length` carries 300 opaque bytes in
+`Msg` deliberately, to pin the `04 82` length form on a primitive, and is therefore a certificate
+on which §3.13.1 cannot be performed. This is §3.8.5's division of labour, one structure over.
 
 ## 4. The two rules
 
@@ -668,6 +726,7 @@ does not know.** The exceptions are exhaustively:
 | `SignatureSetV0` | Inherits SmartBFT's frozen commit-signature encoding | §3.7.1 |
 | `SignerSigV0` | Element of `SignatureSetV0`; same frozen encoding | §3.7.1 |
 | `GenesisMemberV1` | Element of `GenesisV1`; the container's `Version` governs the layout | §3.6.1 |
+| `CertificateV1` | Element of `ClientRequestV1`; the container's `Version` governs the layout | §3.11.7 |
 
 The list is mirrored by `versionExempt` in `profile_test.go`, which fails the build for any
 exported structure not on it. Adding a row is a deliberate act with a recorded reason, and a new
@@ -721,6 +780,8 @@ and requires a version error; then appends `0xff` and requires a trailing-bytes 
 unexpected `02 01 63` into it with the enclosing lengths recomputed, and requires a decode error
 for each — 4 forgeries for a two-member `GenesisV1`, one per SEQUENCE. A conformant implementation
 SHOULD run the same three derivations over the annex; they need no input beyond the file itself.
+`ci/verify_vectors.py` does, in Python and from this document rather than from the Go, and rejects
+121 forgeries across the 30 vectors.
 
 ## 5. Merkle node hashing
 
@@ -733,7 +794,7 @@ with SHA-256.
 |---|---|---|
 | prefix | 1 byte | see §5.2 |
 | `treeID` | 8 bytes | unsigned big-endian |
-| `depth` | 1 byte | unsigned |
+| `depth` | 1 byte | unsigned, so 0..255; a producer MUST reject a deeper node rather than let it wrap |
 | length prefix | 8 bytes | unsigned big-endian |
 | child digest | 32 bytes | raw, **no** length prefix — the width is fixed |
 
@@ -826,10 +887,26 @@ exactly that comparison and was wrong.
 one. A new leader after a view change inherits `p` from the log like everyone else, so it cannot
 move time backwards and there is nothing to deadlock on.
 
-6.5 Open parameter, to be decided in Phase 3: the value of `MAX_STEP`. Too large and §6.6 widens.
-Too small and an idle cluster stalls — after a gap longer than `MAX_STEP` an honest leader's true
-clock already exceeds `p + MAX_STEP`, so it must propose a stamp it knows to be stale or be
-rejected.
+6.5 **`MAX_STEP` = 10 seconds.** Decided here rather than left open: §7.1 makes a normative edit
+after this document is tagged a coordinated upgrade, so the parameter closes before the tag. The
+bound is two-sided and neither side is comfortable, so both are recorded.
+
+*Upper bound.* §6.6 lets a Byzantine leader place `ConsensusTime` anywhere in
+`(p, p + MAX_STEP]`, so `MAX_STEP` is precisely how far one decision can move agreed time. One
+decision must not be able to move it past a whole lease renewal interval. Kubernetes' kubelet
+renews its node `Lease` every 10 seconds; at `MAX_STEP = 10s` a single proposal cannot skip one.
+A consumer of this clock that renews faster than 10 seconds is outside what this value protects
+and needs a bound of its own.
+
+*Lower bound.* §6.2 admits `t ≤ p + MAX_STEP`, so an idle cluster recovers at most `MAX_STEP` of
+agreed time per decision. At one decision per second, agreed time catches up at ten times real
+time. Below roughly one decision per 10 seconds of real time it runs behind — silently, with no
+error anywhere, which is the limitation §6.6 states rather than a new one. A smaller `MAX_STEP`
+moves that threshold up to a decision rate a quiet cluster can plausibly sit under.
+
+The constant is enforced in bft-kv's `consensus` package at `VerifyProposal`, which is where §6
+already places the policy, and the drift of §6.6 is measured on a live cluster rather than
+asserted.
 
 6.6 Accepted limitation, stated rather than left implicit: a Byzantine leader can place
 `ConsensusTime` anywhere in `(p, p + MAX_STEP]`, and the skew compounds across decisions. Every

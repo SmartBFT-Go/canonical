@@ -228,3 +228,22 @@ implementer working from the document does.
 No `.go` file in this repository was opened while `ci/verify_vectors.py` was being written. The
 first Go read was `asn1.go` and `encoding/asn1`, for A4, after the checker was green on all 29
 vectors.
+
+---
+
+## Disposition
+
+| Entry | Section that was unclear | Closed by | Where |
+| --- | --- | --- | --- |
+| A1 | §1.4, §1.5 | spec edit | new §1.4.1, §1.4.2, §1.4.3 |
+| A2 | §4.1 | spec edit | `CertificateV1` row added to §4.1's table |
+| A3 | §3.8.5 | spec edit | §3.8.5's scope paragraph, and new §3.9.6 |
+| A4 | §2.4 | spec edit | new §2.4.1, §2.4.2 |
+| A5 | §2.5 | spec edit | one sentence in §2.5 |
+| A6 | §2.2 | spec edit | §2.2's SEQUENCE OF cell |
+| A7 | §5.1 | spec edit, deliberately partial | §5.1's `depth` cell; the tree's own bound stays Phase 4's |
+| A8 | §3.13, §3.13.1 | spec edit | §3.13's `Msg` row, §3.13.1, new §3.13.6/§3.13.7 |
+
+Eight entries, eight spec edits, none withdrawn as a misreading. §6.5's `MAX_STEP` closed in the
+same pass but is not on this list: it was a parameter the document said was open, not something the
+document failed to say.

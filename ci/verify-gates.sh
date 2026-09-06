@@ -57,6 +57,11 @@ step "format drift"
 golangci-lint fmt ./...
 git diff --exit-code
 
+# A second implementation, from the document rather than from this code. Two Go
+# sides agreeing only proves the author was consistent with themselves.
+step "cross-language vector conformance"
+python3 ci/verify_vectors.py testdata/vectors.json
+
 step "negative gate"
 bash ci/negative-gate.sh
 

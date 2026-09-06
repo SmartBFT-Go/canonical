@@ -32,6 +32,13 @@ jobs:
             | sh -s -- -b "$(go env GOPATH)/bin" "${GOLANGCI_VER}"
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
+      # The conformance checker is stdlib-only, so the interpreter is the whole
+      # install. Pinned to the minor version the gates are developed against.
+      - name: Install Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.10"
+
       # The same script a developer runs locally; there is no second definition.
       - name: Run the gates
         run: bash ci/verify-gates.sh
