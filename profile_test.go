@@ -19,6 +19,7 @@ var versionExempt = map[string]string{
 	"SignatureSetV0":  "inherits SmartBFT's frozen PrevCommitSignatureDigest encoding; see signatures.go",
 	"SignerSigV0":     "element of SignatureSetV0; same frozen encoding",
 	"GenesisMemberV1": "element of GenesisV1; 4.1 binds top-level structures, and the container's Version governs this layout",
+	"CertificateV1":   "element of ClientRequestV1; 4.1 binds top-level structures, and the container's Version governs this layout",
 }
 
 func parsePackage(t *testing.T) []*ast.File {

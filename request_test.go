@@ -20,8 +20,8 @@ func testClientRequest(intermediates int) ClientRequestV1 {
 	return r
 }
 
-// asn1.Unmarshal yields a nil slice for an empty SEQUENCE OF, so an absent chain and an
-// empty one are one value here. WIRE-SPEC 3.11.2.
+// encoding/asn1 always allocates the slice, so decoding an empty SEQUENCE OF gives an
+// empty non-nil chain where the caller supplied nil. One value, two Go spellings.
 func clientRequestEqual(a, b ClientRequestV1) bool {
 	if len(a.Intermediates) != len(b.Intermediates) {
 		return false
@@ -120,11 +120,20 @@ func TestClientRequestV1EmptyChainHasOneSpelling(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UnmarshalClientRequestV1: %v", err)
 	}
-	if got.Intermediates != nil {
-		t.Errorf("decoding an empty SEQUENCE OF gave %#v, want a nil slice", got.Intermediates)
+	if len(got.Intermediates) != 0 {
+		t.Errorf("decoding an empty SEQUENCE OF gave %#v, want no intermediates", got.Intermediates)
 	}
 	if !clientRequestEqual(got, empty) || !clientRequestEqual(got, absent) {
 		t.Error("the decoded request must equal both the nil-chain and the empty-chain value")
+	}
+	// The decode side is whatever encoding/asn1 allocates; what must hold is that
+	// re-encoding it reproduces the bytes a signature was made over.
+	again, err := MarshalClientRequestV1(got)
+	if err != nil {
+		t.Fatalf("MarshalClientRequestV1(decoded): %v", err)
+	}
+	if !bytes.Equal(a, again) {
+		t.Errorf("re-encoding a decoded empty chain changed the bytes:\nwas %x\nnow %x", a, again)
 	}
 }
 
