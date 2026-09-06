@@ -2,6 +2,7 @@ package canonical
 
 import (
 	"bytes"
+	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -65,6 +66,9 @@ type vectorFields struct {
 	View                 int64          `json:"View"`
 	Seq                  int64          `json:"Seq"`
 	Nonce                string         `json:"Nonce"`
+	// Not a field of any structure: 3.9.1's envelope is reconstructed, so a signed
+	// blob vector records the verifier's own inputs beside the transmitted ones.
+	PubKey string `json:"PubKey"`
 }
 
 type vectorMember struct {
@@ -740,4 +744,91 @@ func tagName(t byte) string {
 	default:
 		return fmt.Sprintf("tag 0x%02x", t)
 	}
+}
+
+// signedVectorSeed is fixed and recorded in the vector's annotation: a conformance
+// vector produced from a random key is one nobody else can regenerate.
+var signedVectorSeed = [32]byte{
+	0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+	0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+	0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
+	0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
+}
+
+const signedVectorName = "blob/v1/signed-by-test-key"
+
+func findVector(t *testing.T, name string) derVector {
+	t.Helper()
+	for _, v := range loadGolden(t).Vectors {
+		if v.Name == name {
+			return v
+		}
+	}
+	t.Fatalf("vector %s is not in %s", name, vectorsPath)
+	return derVector{}
+}
+
+// envelopeFor rebuilds 3.9.1's envelope from the blob and a genesis digest the
+// verifier supplies. Nothing on the wire carries it, so nothing can set it.
+func envelopeFor(t *testing.T, blob SignedBlobV1, genesisDigest []byte) []byte {
+	t.Helper()
+	env, err := MarshalSignedV1(SignedV1{
+		Version:       VersionV1,
+		Purpose:       blob.Purpose,
+		GenesisDigest: genesisDigest,
+		Payload:       blob.Payload,
+	})
+	if err != nil {
+		t.Fatalf("reconstructing the envelope: %v", err)
+	}
+	return env
+}
+
+// TestSignedVectorVerifies executes KV-05's "verifiable by the client" clause rather
+// than asserting it: one real Ed25519 signature over one real read-index attestation.
+func TestSignedVectorVerifies(t *testing.T) {
+	v := findVector(t, signedVectorName)
+
+	seed := signedVectorSeed
+	pub, ok := ed25519.NewKeyFromSeed(seed[:]).Public().(ed25519.PublicKey)
+	if !ok {
+		t.Fatal("ed25519 private key did not yield an ed25519 public key")
+	}
+	if got := hex.EncodeToString(pub); got != v.Fields.PubKey {
+		t.Fatalf("vector %s: PubKey is %s, the annotated seed derives %s", v.Name, v.Fields.PubKey, got)
+	}
+
+	blob, err := UnmarshalSignedBlobV1(mustHex(t, v.Name, "der", v.DER))
+	if err != nil {
+		t.Fatalf("vector %s: UnmarshalSignedBlobV1: %v", v.Name, err)
+	}
+	if blob.Purpose != PurposeReadIndex {
+		t.Fatalf("vector %s: Purpose is %d, want %d so the vector is the attestation a client receives",
+			v.Name, blob.Purpose, PurposeReadIndex)
+	}
+	if _, err := UnmarshalReadIndexV1(blob.Payload); err != nil {
+		t.Fatalf("vector %s: Payload is not the ReadIndexV1 that purpose 4 names: %v", v.Name, err)
+	}
+
+	genesis := mustHex(t, v.Name, "GenesisDigest", v.Fields.GenesisDigest)
+	env := envelopeFor(t, blob, genesis)
+	if !ed25519.Verify(pub, env, blob.Value) {
+		t.Fatalf("vector %s: Value does not verify over the reconstructed SignedV1 (3.9.1)", v.Name)
+	}
+
+	t.Run("one flipped bit", func(t *testing.T) {
+		bad := slices.Clone(blob.Value)
+		bad[0] ^= 0x01
+		if ed25519.Verify(pub, env, bad) {
+			t.Error("a Value with one flipped bit still verified")
+		}
+	})
+
+	t.Run("another cluster genesis", func(t *testing.T) {
+		foreign := slices.Clone(genesis)
+		foreign[0] ^= 0x01
+		if ed25519.Verify(pub, envelopeFor(t, blob, foreign), blob.Value) {
+			t.Error("the signature verified under a foreign genesis digest, so 3.8.4's binding is not in the signed bytes")
+		}
+	})
 }
