@@ -336,8 +336,8 @@ Annotated breakdown of vector `signed/v1/commit`:
 |---|---|---|
 | 1 | commit signature | A consenter's signature on a proposal. `Payload` is §3.10. |
 | 2 | opaque sign | The consensus library's general-purpose `Sign`, including view-change `RawViewData`. `Payload` is the argument as handed in. |
-| 3 | client request | A client's signature on its own request. |
-| 4 | read-index attestation | A replica's attestation over `(view, seq, nonce)`. |
+| 3 | client request | A client's signature on its own request. `Payload` is §3.11. |
+| 4 | read-index attestation | A replica's attestation over `(view, seq, nonce)`. `Payload` is §3.12. |
 
 Adding a value is additive under §7 and requires a new annex vector. Changing or reusing a value
 is a breaking change under §1.3, and a worse one than most: it does not merely stop new signatures
@@ -363,8 +363,7 @@ verifier and never transmitted — see §3.9.1.
 
 3.8.5 `Payload` is the purpose's own structure, DER-encoded, and opaque at this layer. Purpose 1
 carries §3.10. Purpose 2 carries whatever the caller handed to `Sign` and this document does not
-constrain it. The payload structures for purposes 3 and 4 are added by the release that freezes
-the client-facing structures and are not specified here.
+constrain it. Purpose 3 carries §3.11 and purpose 4 carries §3.12.
 
 3.8.6 Every constraint in the table is checked on encode **and** on decode, on §3.6.3's grounds. A
 verifier reconstructs this envelope rather than receiving it, so what it reconstructs must be
@@ -456,6 +455,205 @@ does with malformed contents is that layer's obligation, not this one's.
 node identifier alongside the signature.
 
 3.10.4 Every constraint in the table is checked on encode **and** on decode, on §3.6.3's grounds.
+
+### 3.11 `ClientRequestV1`
+
+`SignedV1.Payload` under purpose 3, and the structure a non-Go client has to produce. It is
+**self-contained**: verifying it needs these bytes and the genesis CA root, nothing else.
+
+| # | Field | ASN.1 | Constraints |
+|---|---|---|---|
+| 1 | `Version` | INTEGER | MUST equal 1 for v1. §4.1 applies. |
+| 2 | `ClientCert` | OCTET STRING | DER of the client's leaf certificate. MUST be non-empty. |
+| 3 | `Intermediates` | SEQUENCE OF `CertificateV1` | Ordered leaf-ward to root-ward. MAY be empty; see §3.11.2. |
+| 4 | `RequestID` | OCTET STRING | MUST be exactly 16 bytes. See §3.11.1. |
+| 5 | `Expiry` | INTEGER | Unix nanoseconds. MUST be strictly positive. See §3.11.4. |
+| 6 | `Payload` | OCTET STRING | The application request. Opaque at this layer, and MAY be empty. |
+
+`CertificateV1`, the element type of `Intermediates`:
+
+| # | Field | ASN.1 | Constraints |
+|---|---|---|---|
+| 1 | `DER` | OCTET STRING | DER of one certificate. MUST be non-empty. |
+
+Annotated breakdown of vector `client-request/v1/no-intermediates`:
+
+```
+30 37                           SEQUENCE, 55 bytes
+   02 01 01                     INTEGER 1                Version
+   04 0b 434c…4146              OCTET STRING, 11 bytes   ClientCert — DER of the client leaf
+   30 00                        SEQUENCE OF, 0 bytes     Intermediates — absent chain
+   04 10 0001…0e0f              OCTET STRING, 16 bytes   RequestID
+   02 08 18867251edfa0000       INTEGER 1767225600000000000   Expiry — Unix nanoseconds
+   04 07 5041594c4f4144         OCTET STRING "PAYLOAD"   Payload — the application request
+```
+
+3.11.1 **`RequestID` MUST be exactly 16 bytes**, on encode and on decode. This is not a size hint.
+The consensus library identifies a request by the unescaped concatenation of its client identifier
+and its ID, so a variable-width ID lets one client spell an ID that lands inside another client's
+namespace and collides two distinct requests in the pool. A fixed width removes the ambiguity at
+the encoding layer, where no verifier has to remember to check it.
+
+3.11.2 **An absent chain and an empty chain are one value**, encoded as the empty SEQUENCE OF
+`30 00`. `OPTIONAL` is banned by §2.3, so there is no third spelling and §2.6 applies: an
+implementation MUST NOT attempt to distinguish absent from empty. A decoder MAY produce either an
+empty list or a null list in its own language — Go's `encoding/asn1` allocates an empty non-nil
+slice — and what MUST hold is that re-encoding the decoded value reproduces the bytes the
+signature was made over.
+
+3.11.3 **`Intermediates` is ordered, and the order is inside the signed bytes.** Leaf-ward first,
+root-ward last. It is a SEQUENCE OF but §2.2's producer-sorts rule does not apply: the order is
+the chain itself and carries meaning, so there is nothing to sort it by. Two requests with the
+same certificates in two orders are two different byte strings with two unrelated digests, which
+is what stops a relay from reordering the chain and keeping the signature.
+
+3.11.4 **The client's identity is derived from `ClientCert`, never from the payload.** There is
+deliberately no `ClientID` field. A verifier chains `ClientCert` through `Intermediates` to the CA
+root pinned in `GenesisV1`, and the client's identity is the SPIFFE ID of that verified
+certificate. This is §3.9.3's rule and the transport layer's rule: identity comes from something
+verified, never from a field alongside it.
+
+3.11.5 **`Expiry` is compared against the committed `ConsensusTime` of the proposal header, never
+against a local clock.** §6 explains why: two replicas checking the same request against two local
+clocks reach two verdicts on the same bytes, and that is divergence rather than rejection. A
+non-positive `Expiry` is rejected here because no `ConsensusTime` admits it, which makes it
+malformed rather than merely expired. The ceiling on how far ahead an expiry may sit is a cluster
+policy and is specified outside this document.
+
+3.11.6 **`ClientCert` is carried, not fingerprinted.** The request costs several hundred bytes
+more for it, and the reason is determinism: a replica catching up by state transfer, or replaying
+a decision it never witnessed live, verifies from the request bytes alone and reaches the verdict
+a replica that saw it live reached. A fingerprint plus a local certificate cache cannot promise
+that, because the caches differ.
+
+3.11.7 **`CertificateV1` has no `Version` field.** It is an allowlisted exception to §4.1 on
+§3.6.1's grounds: it is an element of a SEQUENCE OF, it never appears on the wire alone, and the
+containing `ClientRequestV1.Version` already governs its layout. It exists as a structure at all
+because the type profile of §2.2 has no slice-of-slices, so a chain of DER blobs needs a named
+element type.
+
+3.11.8 Every constraint in the two tables is checked on encode **and** on decode, on §3.6.3's
+grounds.
+
+### 3.12 `ReadIndexV1`
+
+`SignedV1.Payload` under purpose 4. A replica's attestation that its state is at `(View, Seq)`,
+answering a client's freshness challenge.
+
+| # | Field | ASN.1 | Constraints |
+|---|---|---|---|
+| 1 | `Version` | INTEGER | MUST equal 1 for v1. §4.1 applies. |
+| 2 | `SignerID` | INTEGER | The attesting replica's node identifier. MUST be strictly positive. |
+| 3 | `View` | INTEGER | MUST be non-negative. |
+| 4 | `Seq` | INTEGER | MUST be non-negative. 64-bit; see §3.5. |
+| 5 | `Nonce` | OCTET STRING | MUST be exactly 16 bytes, chosen by the client. |
+
+Annotated breakdown of vector `read-index/v1/basic`:
+
+```
+30 1e                           SEQUENCE, 30 bytes
+   02 01 01                     INTEGER 1                Version
+   02 01 03                     INTEGER 3                SignerID — node 3
+   02 01 07                     INTEGER 7                View
+   02 01 2a                     INTEGER 42               Seq
+   04 10 a7*16                  OCTET STRING, 16 bytes   Nonce — client chosen
+```
+
+3.12.1 **`SignerID` is inside the signed bytes.** An attestation names its own signer, so it
+cannot be re-attributed by whoever relays it: a signature made by node 3 covers bytes that say
+node 3, and rewriting the field invalidates it. This is why the structure carries a signer where
+§3.9.3 says the envelope must not — the difference is whether the identifier is under the
+signature or beside it.
+
+3.12.2 **`Nonce` is the client's freshness challenge and its width is fixed, not bounded.** A
+client that accepts a short nonce accepts a narrower challenge, and how narrow is then the
+attacker's choice. Sixteen bytes on both encode and decode removes the choice.
+
+3.12.3 `SignerID` MUST be strictly positive: 0 is the consensus library's "no node", so an
+attestation carrying it names nobody. A negative `View` or `Seq` is out of range per §3.5 —
+both are logically unsigned and carried in a signed INTEGER.
+
+3.12.4 Vector `read-index/v1/high-seq` carries a `Seq` past 2^32 specifically so that an
+implementation parsing INTEGER into a 32-bit type fails on it rather than silently attesting to a
+truncated sequence.
+
+3.12.5 Every constraint in the table is checked on encode **and** on decode, on §3.6.3's grounds.
+
+### 3.13 `CommitCertificateV1`
+
+What a client checks to know a proposal was decided, holding nothing but genesis. It is a
+**container**: it is never itself signed, and no purpose value carries it.
+
+| # | Field | ASN.1 | Constraints |
+|---|---|---|---|
+| 1 | `Version` | INTEGER | MUST equal 1 for v1. §4.1 applies. |
+| 2 | `ProposalDigest` | OCTET STRING | MUST be exactly 32 bytes: the digest of the proposal under §3.2.3. |
+| 3 | `View` | INTEGER | MUST be non-negative. |
+| 4 | `Seq` | INTEGER | MUST be non-negative. |
+| 5 | `Sigs` | SEQUENCE OF `SignerSigV0` | MUST be non-empty and strictly ascending by `Signer`. See §3.13.2. |
+
+`Sigs` reuses `SignerSigV0` from §3.7 rather than declaring a fourth spelling of "a signature with
+a signer attached". Within this structure its two byte fields are constrained where §3.7 leaves
+them open:
+
+| # | Field | ASN.1 | Constraints |
+|---|---|---|---|
+| 1 | `Signer` | INTEGER | The consenter's node identifier. |
+| 2 | `Value` | OCTET STRING | MUST be exactly 64 bytes: an Ed25519 signature. See §3.13.1. |
+| 3 | `Msg` | OCTET STRING | The `CommitPayloadV1` of §3.10, DER. MUST be non-empty. |
+
+Annotated breakdown of vector `commit-cert/v1/n4-q3`:
+
+```
+30 82 01 8e                     SEQUENCE, 398 bytes
+   02 01 01                     INTEGER 1                Version
+   04 20 35d8…7522              OCTET STRING, 32 bytes   ProposalDigest (SHA-256 of proposal/v0/smartbft-reference)
+   02 01 07                     INTEGER 7                View
+   02 01 2a                     INTEGER 42               Seq
+   30 82 01 5f                  SEQUENCE OF, 351 bytes   Sigs, ascending by Signer
+      30 73                     SEQUENCE, 115 bytes      Sigs[0]
+         02 01 01               INTEGER 1                Signer
+         04 40 a1*64            OCTET STRING, 64 bytes   Value
+         04 2c 302a…5558        OCTET STRING, 44 bytes   Msg — commit-payload/v1/with-aux
+      30 73 … 02 01 02 …                                 Sigs[1], signer 2
+      30 73 … 02 01 03 …                                 Sigs[2], signer 3
+```
+
+3.13.1 **What `Value` covers, in full, because a client implementing from this document has no
+other way to learn it.** `Msg` is the DER of a `CommitPayloadV1` (§3.10). The verifier
+reconstructs `SignedV1{Version: 1, Purpose: 1, GenesisDigest: <its own>, Payload: Msg}` (§3.8),
+marshals it, and verifies `Value` as an Ed25519 signature over exactly those bytes under the
+signer's pinned public key from `GenesisV1`. The envelope is never transmitted, here or anywhere;
+this is §3.9.1's rule applied to a structure that carries several signatures instead of one. A
+client MUST also check that the `ProposalDigest` inside each `Msg` equals the certificate's own
+`ProposalDigest`, or the container's digest is decorative.
+
+3.13.2 **`Sigs` is strictly ascending by `Signer`, and duplicates are rejected — on encode and on
+decode.** This is §2.2's producer-sorts rule with no exception, which is the opposite of §3.7.4.
+The difference is deliberate and worth stating: `SignatureSetV0.Sigs` is unsorted because its
+digest is order-dependent and every ledger already holds digests over the leader's order, so
+sorting it now would be a breaking change. `CommitCertificateV1` is new, nothing stored depends on
+its order, and a client that accepts an unsorted certificate accepts two byte strings for one
+decision. Rejecting on both sides is what makes the second spelling unreachable.
+
+3.13.3 **The signature threshold is not in this document.** How many entries a client must require
+is a property of the cluster size and the fault model, it lives with the quorum arithmetic, and
+this layer does not enforce it. A specification that stated a threshold it does not check would be
+a claim an implementer could rely on and a verifier would not honour. What this layer guarantees
+is that the entries are well-formed, unique and ordered; counting them against a quorum is the
+verifier's obligation.
+
+3.13.4 **This layer does not map `Signer` to a member.** It does not check that a signer appears in
+`GenesisV1`, and it does not constrain `Signer`'s range beyond what §3.5 says about INTEGER —
+`SignerSigV0` is a frozen v0 element type and §3.7 leaves its fields open. Resolving a signer to a
+pinned public key is the verifying layer's work, and it is the same layer that applies §3.13.3's
+threshold.
+
+3.13.5 `Msg` MUST be non-empty, on §3.9.4's grounds: an entry with no signed message cannot be
+verified by anyone, so rejecting it once here keeps that check out of every client.
+
+3.13.6 Every constraint in the two tables is checked on encode **and** on decode, on §3.6.3's
+grounds.
 
 ## 4. The two rules
 

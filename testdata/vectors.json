@@ -472,6 +472,254 @@
         "The same proposal with no auxiliary input. Per 2.6 an absent Aux and an empty one are the same 04 00 and cannot be told apart, so a verifier that needs the distinction carries it elsewhere.",
         "  04 00                         OCTET STRING, 0 bytes    Aux"
       ]
+    },
+    {
+      "name": "client-request/v1/no-intermediates",
+      "structure": "ClientRequestV1",
+      "fields": {
+        "Version": 1,
+        "ClientCert": "434c49454e542d4c454146",
+        "Intermediates": [],
+        "RequestID": "000102030405060708090a0b0c0d0e0f",
+        "Expiry": 1767225600000000000,
+        "Payload": "5041594c4f4144"
+      },
+      "der": "3037020101040b434c49454e542d4c45414630000410000102030405060708090a0b0c0d0e0f020818867251edfa000004075041594c4f4144",
+      "sha256": "ff571a578e1029bcf6096bd065e9e44fe6d791ca8307ae3b02105e01d7830a05",
+      "annotation": [
+        "The request named in 3.11. It carries its own leaf, so a replica catching up by state transfer verifies it against the genesis CA root alone and reaches the verdict a replica that saw it live reached.",
+        "There is no ClientID field. The client's identity is the SPIFFE ID of the verified ClientCert, derived and never asserted.",
+        "The chain is absent, which per 3.11.2 is the empty SEQUENCE OF 30 00 and not an omitted field: 2.3 bans OPTIONAL, so absent and empty have one spelling.",
+        "30 37                           SEQUENCE, 55 bytes",
+        "  02 01 01                      INTEGER 1                Version",
+        "  04 0b 434c..4146              OCTET STRING, 11 bytes   ClientCert - DER of the client leaf, opaque here",
+        "  30 00                         SEQUENCE OF, 0 bytes     Intermediates - absent chain",
+        "  04 10 0001..0e0f              OCTET STRING, 16 bytes   RequestID - exactly RequestIDLen, per 3.11.1",
+        "  02 08 18867251edfa0000        INTEGER 1767225600000000000  Expiry - Unix nanoseconds",
+        "  04 07 5041594c4f4144          OCTET STRING \"PAYLOAD\"   Payload - the application request, opaque here"
+      ]
+    },
+    {
+      "name": "client-request/v1/one-intermediate",
+      "structure": "ClientRequestV1",
+      "fields": {
+        "Version": 1,
+        "ClientCert": "434c49454e542d4c454146",
+        "Intermediates": [
+          {
+            "DER": "494e5445524d4544494154452d31"
+          }
+        ],
+        "RequestID": "000102030405060708090a0b0c0d0e0f",
+        "Expiry": 1767225600000000000,
+        "Payload": "5041594c4f4144"
+      },
+      "der": "3049020101040b434c49454e542d4c45414630123010040e494e5445524d4544494154452d310410000102030405060708090a0b0c0d0e0f020818867251edfa000004075041594c4f4144",
+      "sha256": "a4c7b688bdcc20ea2aeea6366a75b8ba25d89c3310664c313a55bed4c98c1eac",
+      "annotation": [
+        "The same request with one intermediate. Each element is a CertificateV1 SEQUENCE wrapping one DER certificate, because the type profile of 2.2 has no slice of slices.",
+        "The chain is ordered leaf-ward to root-ward and the order is inside the signed bytes, so a relay that reorders it destroys the signature.",
+        "  30 12                         SEQUENCE OF, 18 bytes    Intermediates",
+        "    30 10                       SEQUENCE, 16 bytes       Intermediates[0]",
+        "      04 0e 494e..2d31          OCTET STRING, 14 bytes   DER"
+      ]
+    },
+    {
+      "name": "client-request/v1/long-form-length",
+      "structure": "ClientRequestV1",
+      "fields": {
+        "Version": 1,
+        "ClientCert": "434c49454e542d4c454146",
+        "Intermediates": [
+          {
+            "DER": "494e5445524d4544494154452d31"
+          }
+        ],
+        "RequestID": "000102030405060708090a0b0c0d0e0f",
+        "Expiry": 1767225600000000000,
+        "Payload": "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a"
+      },
+      "der": "3082010b020101040b434c49454e542d4c45414630123010040e494e5445524d4544494154452d310410000102030405060708090a0b0c0d0e0f020818867251edfa00000481c85a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+      "sha256": "44a2fd11638a227a72f7b16d1b8564ccca7e07824146c257bcbac66592fa7a82",
+      "annotation": [
+        "A 200-byte payload, so the Payload OCTET STRING takes the 0x81 long form and the outer SEQUENCE the 0x82 form. Both are pinned here per 2.4; 04 82 00 c8 and 30 81 0b would be non-minimal and MUST be rejected.",
+        "30 82 01 0b                     SEQUENCE, 267 bytes",
+        "  04 81 c8 5a*200               OCTET STRING, 200 bytes  Payload"
+      ]
+    },
+    {
+      "name": "read-index/v1/basic",
+      "structure": "ReadIndexV1",
+      "fields": {
+        "Version": 1,
+        "SignerID": 3,
+        "View": 7,
+        "Seq": 42,
+        "Nonce": "a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7"
+      },
+      "der": "301e02010102010302010702012a0410a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7",
+      "sha256": "11c27544aaa9e1a30acc458a54373b614d0f7182d0efdf626073e45c3eee36da",
+      "annotation": [
+        "The attestation named in 3.12, carried as SignedV1.Payload under purpose 4. SignerID is inside the signed bytes, so an attestation cannot be re-attributed by whoever relays it.",
+        "The nonce is the client's freshness challenge and is exactly NonceLen bytes; a short one narrows the challenge, which is the whole mechanism.",
+        "30 1e                           SEQUENCE, 30 bytes",
+        "  02 01 01                      INTEGER 1                Version",
+        "  02 01 03                      INTEGER 3                SignerID - node 3",
+        "  02 01 07                      INTEGER 7                View",
+        "  02 01 2a                      INTEGER 42               Seq",
+        "  04 10 a7*16                   OCTET STRING, 16 bytes   Nonce - client chosen"
+      ]
+    },
+    {
+      "name": "read-index/v1/high-seq",
+      "structure": "ReadIndexV1",
+      "fields": {
+        "Version": 1,
+        "SignerID": 3,
+        "View": 7,
+        "Seq": 4294967338,
+        "Nonce": "a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7"
+      },
+      "der": "30220201010201030201070205010000002a0410a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7",
+      "sha256": "1fdabee526dfb88dd3de7b67f13544c6e41bb76533e14b58b506feafe6f5a209",
+      "annotation": [
+        "Seq is 2^32 + 42, past what a 32-bit reader holds. An implementer who parses INTEGER into a 32-bit type fails here rather than silently attesting to sequence 42.",
+        "  02 05 01 00 00 00 2a          INTEGER 4294967338       Seq - five content octets"
+      ]
+    },
+    {
+      "name": "commit-cert/v1/n4-q3",
+      "structure": "CommitCertificateV1",
+      "fields": {
+        "Version": 1,
+        "ProposalDigest": "35d84b08b379543f9d140ebc473d859c95e743dd0968adf54be28dd6e7727522",
+        "View": 7,
+        "Seq": 42,
+        "Sigs": [
+          {
+            "Signer": 1,
+            "Value": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+            "Msg": "302a020101042035d84b08b379543f9d140ebc473d859c95e743dd0968adf54be28dd6e77275220403415558"
+          },
+          {
+            "Signer": 2,
+            "Value": "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+            "Msg": "302a020101042035d84b08b379543f9d140ebc473d859c95e743dd0968adf54be28dd6e77275220403415558"
+          },
+          {
+            "Signer": 3,
+            "Value": "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+            "Msg": "302a020101042035d84b08b379543f9d140ebc473d859c95e743dd0968adf54be28dd6e77275220403415558"
+          }
+        ]
+      },
+      "der": "3082018e020101042035d84b08b379543f9d140ebc473d859c95e743dd0968adf54be28dd6e772752202010702012a3082015f30730201010440a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1042c302a020101042035d84b08b379543f9d140ebc473d859c95e743dd0968adf54be28dd6e7727522040341555830730201020440a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2042c302a020101042035d84b08b379543f9d140ebc473d859c95e743dd0968adf54be28dd6e7727522040341555830730201030440a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3042c302a020101042035d84b08b379543f9d140ebc473d859c95e743dd0968adf54be28dd6e77275220403415558",
+      "sha256": "a14abadb4e11c3f52b1aac5ad97bf1b0b60d67e0658fba3d7ed974e560f938ab",
+      "annotation": [
+        "The certificate named in 3.13: three signatures, the quorum at n=4. It is a container and is not itself signed.",
+        "Each Msg is the DER of vector commit-payload/v1/with-aux. A client reconstructs SignedV1{1, 1, its own genesis digest, Msg} and verifies Value over those bytes; the envelope is never transmitted. See 3.9.1.",
+        "Sigs is strictly ascending by Signer and rejected otherwise on both encode and decode, so an unsorted certificate has no second spelling. This is 2.2's rule with no exception, unlike 3.7.4.",
+        "How many entries a client must require is a property of the cluster size and is specified outside this document.",
+        "30 82 01 8e                     SEQUENCE, 398 bytes",
+        "  02 01 01                      INTEGER 1                Version",
+        "  04 20 35d8..7522              OCTET STRING, 32 bytes   ProposalDigest (SHA-256 of proposal/v0/smartbft-reference)",
+        "  02 01 07                      INTEGER 7                View",
+        "  02 01 2a                      INTEGER 42               Seq",
+        "  30 82 01 5f                   SEQUENCE OF, 351 bytes   Sigs, ascending by Signer",
+        "    30 73                       SEQUENCE, 115 bytes      Sigs[0]",
+        "      02 01 01                  INTEGER 1                Signer",
+        "      04 40 a1*64               OCTET STRING, 64 bytes   Value - Ed25519 over the reconstructed envelope",
+        "      04 2c 302a..5558          OCTET STRING, 44 bytes   Msg - commit-payload/v1/with-aux",
+        "    30 73 .. 02 01 02 ..        Sigs[1], signer 2, a2*64",
+        "    30 73 .. 02 01 03 ..        Sigs[2], signer 3, a3*64"
+      ]
+    },
+    {
+      "name": "commit-cert/v1/n13-q9",
+      "structure": "CommitCertificateV1",
+      "fields": {
+        "Version": 1,
+        "ProposalDigest": "35d84b08b379543f9d140ebc473d859c95e743dd0968adf54be28dd6e7727522",
+        "View": 7,
+        "Seq": 42,
+        "Sigs": [
+          {
+            "Signer": 1,
+            "Value": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+            "Msg": "302a020101042035d84b08b379543f9d140ebc473d859c95e743dd0968adf54be28dd6e77275220403415558"
+          },
+          {
+            "Signer": 2,
+            "Value": "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+            "Msg": "302a020101042035d84b08b379543f9d140ebc473d859c95e743dd0968adf54be28dd6e77275220403415558"
+          },
+          {
+            "Signer": 3,
+            "Value": "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3",
+            "Msg": "302a020101042035d84b08b379543f9d140ebc473d859c95e743dd0968adf54be28dd6e77275220403415558"
+          },
+          {
+            "Signer": 4,
+            "Value": "a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4",
+            "Msg": "302a020101042035d84b08b379543f9d140ebc473d859c95e743dd0968adf54be28dd6e77275220403415558"
+          },
+          {
+            "Signer": 5,
+            "Value": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+            "Msg": "302a020101042035d84b08b379543f9d140ebc473d859c95e743dd0968adf54be28dd6e77275220403415558"
+          },
+          {
+            "Signer": 6,
+            "Value": "a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6",
+            "Msg": "302a020101042035d84b08b379543f9d140ebc473d859c95e743dd0968adf54be28dd6e77275220403415558"
+          },
+          {
+            "Signer": 7,
+            "Value": "a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7",
+            "Msg": "302a020101042035d84b08b379543f9d140ebc473d859c95e743dd0968adf54be28dd6e77275220403415558"
+          },
+          {
+            "Signer": 8,
+            "Value": "a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8",
+            "Msg": "302a020101042035d84b08b379543f9d140ebc473d859c95e743dd0968adf54be28dd6e77275220403415558"
+          },
+          {
+            "Signer": 9,
+            "Value": "a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9",
+            "Msg": "302a020101042035d84b08b379543f9d140ebc473d859c95e743dd0968adf54be28dd6e77275220403415558"
+          }
+        ]
+      },
+      "der": "3082044c020101042035d84b08b379543f9d140ebc473d859c95e743dd0968adf54be28dd6e772752202010702012a3082041d30730201010440a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1042c302a020101042035d84b08b379543f9d140ebc473d859c95e743dd0968adf54be28dd6e7727522040341555830730201020440a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2042c302a020101042035d84b08b379543f9d140ebc473d859c95e743dd0968adf54be28dd6e7727522040341555830730201030440a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3042c302a020101042035d84b08b379543f9d140ebc473d859c95e743dd0968adf54be28dd6e7727522040341555830730201040440a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4042c302a020101042035d84b08b379543f9d140ebc473d859c95e743dd0968adf54be28dd6e7727522040341555830730201050440a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5042c302a020101042035d84b08b379543f9d140ebc473d859c95e743dd0968adf54be28dd6e7727522040341555830730201060440a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6042c302a020101042035d84b08b379543f9d140ebc473d859c95e743dd0968adf54be28dd6e7727522040341555830730201070440a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7042c302a020101042035d84b08b379543f9d140ebc473d859c95e743dd0968adf54be28dd6e7727522040341555830730201080440a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8042c302a020101042035d84b08b379543f9d140ebc473d859c95e743dd0968adf54be28dd6e7727522040341555830730201090440a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9042c302a020101042035d84b08b379543f9d140ebc473d859c95e743dd0968adf54be28dd6e77275220403415558",
+      "sha256": "8e75de8faa03988bdb6ea482886e784ccb1aa44838de198ac728118df7b79709",
+      "annotation": [
+        "The same decision with nine signatures, the quorum at n=13. Same proposal, same view and seq: only the signature set differs, which is what a larger cluster changes about this structure.",
+        "30 82 04 4c                     SEQUENCE, 1100 bytes",
+        "  30 82 04 1d                   SEQUENCE OF, 1053 bytes  Sigs, signers 1..9 ascending"
+      ]
+    },
+    {
+      "name": "commit-cert/v1/long-form-length",
+      "structure": "CommitCertificateV1",
+      "fields": {
+        "Version": 1,
+        "ProposalDigest": "35d84b08b379543f9d140ebc473d859c95e743dd0968adf54be28dd6e7727522",
+        "View": 7,
+        "Seq": 42,
+        "Sigs": [
+          {
+            "Signer": 1,
+            "Value": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+            "Msg": "6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d"
+          }
+        ]
+      },
+      "der": "308201a8020101042035d84b08b379543f9d140ebc473d859c95e743dd0968adf54be28dd6e772752202010702012a30820179308201750201010440a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a10482012c6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d",
+      "sha256": "e5dd45d6941feb62b7cce51f4f22acd784cf51af689add46001e463cff469f9b",
+      "annotation": [
+        "One entry whose Msg is 300 bytes, so the Msg OCTET STRING takes the 0x82 two-octet length form. No other vector pins that form on a primitive, and 04 83 00 01 2c would be non-minimal and MUST be rejected per 2.4.",
+        "      04 82 01 2c 6d*300        OCTET STRING, 300 bytes  Msg"
+      ]
     }
   ],
 

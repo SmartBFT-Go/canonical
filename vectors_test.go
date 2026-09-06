@@ -57,12 +57,24 @@ type vectorFields struct {
 	Value                string         `json:"Value"`
 	ProposalDigest       string         `json:"ProposalDigest"`
 	Aux                  string         `json:"Aux"`
+	ClientCert           string         `json:"ClientCert"`
+	Intermediates        []vectorCert   `json:"Intermediates"`
+	RequestID            string         `json:"RequestID"`
+	Expiry               int64          `json:"Expiry"`
+	SignerID             int64          `json:"SignerID"`
+	View                 int64          `json:"View"`
+	Seq                  int64          `json:"Seq"`
+	Nonce                string         `json:"Nonce"`
 }
 
 type vectorMember struct {
 	NodeID     int64  `json:"NodeID"`
 	SpiffeID   string `json:"SpiffeID"`
 	LeafPubKey string `json:"LeafPubKey"`
+}
+
+type vectorCert struct {
+	DER string `json:"DER"`
 }
 
 type vectorSig struct {
@@ -208,6 +220,46 @@ func commitPayloadFromVector(t *testing.T, v derVector) CommitPayloadV1 {
 	}
 }
 
+func clientRequestFromVector(t *testing.T, v derVector) ClientRequestV1 {
+	t.Helper()
+	r := ClientRequestV1{
+		Version:    v.Fields.Version,
+		ClientCert: mustHex(t, v.Name, "ClientCert", v.Fields.ClientCert),
+		RequestID:  mustHex(t, v.Name, "RequestID", v.Fields.RequestID),
+		Expiry:     v.Fields.Expiry,
+		Payload:    mustHex(t, v.Name, "Payload", v.Fields.Payload),
+	}
+	for _, c := range v.Fields.Intermediates {
+		r.Intermediates = append(r.Intermediates, CertificateV1{
+			DER: mustHex(t, v.Name, "DER", c.DER),
+		})
+	}
+	return r
+}
+
+func readIndexFromVector(t *testing.T, v derVector) ReadIndexV1 {
+	t.Helper()
+	return ReadIndexV1{
+		Version:  v.Fields.Version,
+		SignerID: v.Fields.SignerID,
+		View:     v.Fields.View,
+		Seq:      v.Fields.Seq,
+		Nonce:    mustHex(t, v.Name, "Nonce", v.Fields.Nonce),
+	}
+}
+
+func commitCertFromVector(t *testing.T, v derVector) CommitCertificateV1 {
+	t.Helper()
+	c := CommitCertificateV1{
+		Version:        v.Fields.Version,
+		ProposalDigest: mustHex(t, v.Name, "ProposalDigest", v.Fields.ProposalDigest),
+		View:           v.Fields.View,
+		Seq:            v.Fields.Seq,
+	}
+	c.Sigs = sigsetFromVector(t, v).Sigs
+	return c
+}
+
 // encodeVector dispatches by structure name with an explicit switch, not reflection.
 func encodeVector(t *testing.T, v derVector) []byte {
 	t.Helper()
@@ -262,6 +314,24 @@ func encodeVector(t *testing.T, v derVector) []byte {
 		b, err := MarshalCommitPayloadV1(commitPayloadFromVector(t, v))
 		if err != nil {
 			t.Fatalf("vector %s: MarshalCommitPayloadV1: %v", v.Name, err)
+		}
+		return b
+	case "ClientRequestV1":
+		b, err := MarshalClientRequestV1(clientRequestFromVector(t, v))
+		if err != nil {
+			t.Fatalf("vector %s: MarshalClientRequestV1: %v", v.Name, err)
+		}
+		return b
+	case "ReadIndexV1":
+		b, err := MarshalReadIndexV1(readIndexFromVector(t, v))
+		if err != nil {
+			t.Fatalf("vector %s: MarshalReadIndexV1: %v", v.Name, err)
+		}
+		return b
+	case "CommitCertificateV1":
+		b, err := MarshalCommitCertificateV1(commitCertFromVector(t, v))
+		if err != nil {
+			t.Fatalf("vector %s: MarshalCommitCertificateV1: %v", v.Name, err)
 		}
 		return b
 	default:
@@ -323,6 +393,27 @@ func roundTripVector(t *testing.T, v derVector, der []byte) ([]byte, error) {
 			return nil, err
 		}
 		b, err := MarshalCommitPayloadV1(p)
+		return reMarshal(t, v.Name, b, err)
+	case "ClientRequestV1":
+		r, err := UnmarshalClientRequestV1(der)
+		if err != nil {
+			return nil, err
+		}
+		b, err := MarshalClientRequestV1(r)
+		return reMarshal(t, v.Name, b, err)
+	case "ReadIndexV1":
+		r, err := UnmarshalReadIndexV1(der)
+		if err != nil {
+			return nil, err
+		}
+		b, err := MarshalReadIndexV1(r)
+		return reMarshal(t, v.Name, b, err)
+	case "CommitCertificateV1":
+		c, err := UnmarshalCommitCertificateV1(der)
+		if err != nil {
+			return nil, err
+		}
+		b, err := MarshalCommitCertificateV1(c)
 		return reMarshal(t, v.Name, b, err)
 	default:
 		t.Fatalf("vector %s: unknown structure %q", v.Name, v.Structure)
