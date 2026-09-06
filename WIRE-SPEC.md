@@ -305,6 +305,158 @@ carrying the same data would sort by `Signer` and reject duplicates.
 returns a nil digest for an empty signature set without reaching the encoder, so those bytes are
 not hashed in practice; the vector exists so that an implementer does not have to guess.
 
+### 3.8 `SignedV1`
+
+The signature envelope. **Every Ed25519 signature in this system is a signature over the DER of a
+`SignedV1` and nothing else** — commit signatures, the consensus library's opaque `Sign`, client
+requests and read-index attestations alike. There is no second signing format and no carve-out,
+so an implementer has one structure to reproduce and adding a signature kind later costs a value
+in §3.8.1 rather than a new encoding.
+
+| # | Field | ASN.1 | Constraints |
+|---|---|---|---|
+| 1 | `Version` | INTEGER | MUST equal 1 for v1. §4.1 applies. |
+| 2 | `Purpose` | INTEGER | MUST be one of the four values in §3.8.1. Every other value, including 0 and 5, MUST be rejected. |
+| 3 | `GenesisDigest` | OCTET STRING | MUST be exactly 32 bytes: the digest of the cluster's `GenesisV1` under §3.4. |
+| 4 | `Payload` | OCTET STRING | The purpose's own structure, DER. See §3.8.5. MAY be empty. |
+
+Annotated breakdown of vector `signed/v1/commit`:
+
+```
+30 31                           SEQUENCE, 49 bytes
+   02 01 01                     INTEGER 1                 Version
+   02 01 01                     INTEGER 1                 Purpose — commit signature
+   04 20 6f01…dc56              OCTET STRING, 32 bytes    GenesisDigest (SHA-256 of genesis/v1/n4)
+   04 07 5041594c4f4144         OCTET STRING "PAYLOAD"    Payload — opaque at this layer
+```
+
+3.8.1 The purpose values are **frozen**:
+
+| Value | Purpose | What it covers |
+|---|---|---|
+| 1 | commit signature | A consenter's signature on a proposal. `Payload` is §3.10. |
+| 2 | opaque sign | The consensus library's general-purpose `Sign`, including view-change `RawViewData`. `Payload` is the argument as handed in. |
+| 3 | client request | A client's signature on its own request. |
+| 4 | read-index attestation | A replica's attestation over `(view, seq, nonce)`. |
+
+Adding a value is additive under §7 and requires a new annex vector. Changing or reusing a value
+is a breaking change under §1.3, and a worse one than most: it does not merely stop new signatures
+verifying, it makes old ones verify under a purpose their signer never intended.
+
+3.8.2 A verifier MUST check `Purpose` and `GenesisDigest` **before** it checks the signature. A
+signature made for another purpose or another cluster is then rejected on structure rather than on
+cryptography, which is a cheaper rejection and a clearer one — the reason is a field, not a failed
+curve operation.
+
+3.8.3 `Purpose` is inside the signed bytes, so two envelopes differing only in `Purpose` are two
+different byte strings with two unrelated digests. That is what makes a captured commit signature
+useless as a read-index attestation: the attestation verifier reconstructs an envelope carrying
+purpose 4, and no signature over purpose 1 covers those bytes. Vectors `signed/v1/commit`,
+`signed/v1/opaque`, `signed/v1/client-request` and `signed/v1/read-index` carry one payload under
+all four purposes and pin exactly this.
+
+3.8.4 `GenesisDigest` is inside the signed bytes for the same reason, one scope up: a signature
+minted in one cluster covers bytes no other cluster reconstructs, so a test cluster's signature
+replayed against production is not a signature at all. It costs 32 bytes per signature and it
+makes "which cluster is this for" answerable from the bytes alone. The digest is supplied by the
+verifier and never transmitted — see §3.9.1.
+
+3.8.5 `Payload` is the purpose's own structure, DER-encoded, and opaque at this layer. Purpose 1
+carries §3.10. Purpose 2 carries whatever the caller handed to `Sign` and this document does not
+constrain it. The payload structures for purposes 3 and 4 are added by the release that freezes
+the client-facing structures and are not specified here.
+
+3.8.6 Every constraint in the table is checked on encode **and** on decode, on §3.6.3's grounds. A
+verifier reconstructs this envelope rather than receiving it, so what it reconstructs must be
+something a signer could have emitted.
+
+### 3.9 `SignedBlobV1`
+
+A signature travelling beside the payload it was made over. This is a transport structure, not a
+signed one: it is never itself signed, and `Value` is a signature over the §3.8 envelope
+reconstructed from its other fields.
+
+| # | Field | ASN.1 | Constraints |
+|---|---|---|---|
+| 1 | `Version` | INTEGER | MUST equal 1 for v1. §4.1 applies. |
+| 2 | `Purpose` | INTEGER | MUST be one of the four values in §3.8.1. |
+| 3 | `Payload` | OCTET STRING | The purpose's own structure, DER. MUST be non-empty. |
+| 4 | `Value` | OCTET STRING | MUST be exactly 64 bytes: an Ed25519 signature. |
+
+Annotated breakdown of vector `blob/v1/basic`:
+
+```
+30 76                           SEQUENCE, 118 bytes
+   02 01 01                     INTEGER 1                 Version
+   02 01 01                     INTEGER 1                 Purpose — commit signature
+   04 2c 302a…4155 58           OCTET STRING, 44 bytes    Payload (commit-payload/v1/with-aux)
+   04 40 0001…3e3f              OCTET STRING, 64 bytes    Value
+```
+
+3.9.1 **The envelope is reconstructed, never transmitted.** There is no `GenesisDigest` field
+here, and adding one would be a mistake rather than a convenience. A verifier MUST build
+`SignedV1{1, Purpose, <its own genesis digest>, Payload}`, marshal it under §3.8, and verify
+`Value` over exactly those bytes. A signature minted against another cluster therefore does not
+carry a wrong digest that some check has to catch — it covers bytes this verifier never produces,
+and there is no field in the blob for an attacker to set. Vector `blob/v1/basic` records the
+reconstructed envelope and its digest in its annotation so the rule is exhibited and not only
+asserted.
+
+3.9.2 The rule is also the only one that works everywhere. On the consensus path the signature
+travels in the consensus library's own `Signature.Msg`, which carries the payload and has nowhere
+to put an envelope. Reconstruction covers that case and the blob case with one convention, so §3.8
+keeps its "no exceptions".
+
+3.9.3 **There is no signer field.** Every payload names its own signer — a client request by
+carrying its certificate, a read-index attestation by carrying its signer identifier, a consenter
+signature by the node identifier the consensus library already transports. A signer named beside a
+signature rather than inside the signed bytes can be rewritten by whoever relays it, which turns
+an identifier into a suggestion. This is the same rule as §3.6.6 and the same rule the transport
+layer applies to node identity: identity comes from something verified, never from a field
+alongside it.
+
+3.9.4 `Payload` MUST be non-empty. An envelope over nothing is a signature every purpose would
+have to reject on its own terms, and rejecting it once here keeps that check out of four
+verifiers.
+
+3.9.5 Every constraint in the table is checked on encode **and** on decode, on §3.6.3's grounds.
+
+### 3.10 `CommitPayloadV1`
+
+`SignedV1.Payload` under purpose 1. It is what a consenter's signature on a proposal actually
+covers.
+
+| # | Field | ASN.1 | Constraints |
+|---|---|---|---|
+| 1 | `Version` | INTEGER | MUST equal 1 for v1. §4.1 applies. |
+| 2 | `ProposalDigest` | OCTET STRING | MUST be exactly 32 bytes: the digest of the proposal under §3.2.3. |
+| 3 | `Aux` | OCTET STRING | The consensus library's auxiliary input, relayed verbatim. Opaque to this layer, and MAY be empty. |
+
+Annotated breakdown of vector `commit-payload/v1/with-aux`:
+
+```
+30 2a                           SEQUENCE, 42 bytes
+   02 01 01                     INTEGER 1                 Version
+   04 20 35d8…7522              OCTET STRING, 32 bytes    ProposalDigest (SHA-256 of proposal/v0/smartbft-reference)
+   04 03 415558                 OCTET STRING "AUX"        Aux
+```
+
+3.10.1 **The proposal digest and the auxiliary data are in one structure on purpose.** A signature
+over the digest alone leaves the aux unsigned, so whoever relays the signature can pair it with an
+aux of their choosing; a signature over the aux alone can be lifted onto another proposal. Binding
+both under one signature makes a consenter signature non-transplantable in either direction.
+Vectors `commit-payload/v1/with-aux` and `commit-payload/v1/empty-aux` name one proposal and
+differ only in the aux, and they hash to unrelated digests.
+
+3.10.2 `Aux` is opaque here. This layer does not parse it, does not constrain its contents, and
+does not require it to be present — the aux feeds consensus bookkeeping, and what that bookkeeping
+does with malformed contents is that layer's obligation, not this one's.
+
+3.10.3 There is no signer field, on §3.9.3's grounds: the consensus library already transports the
+node identifier alongside the signature.
+
+3.10.4 Every constraint in the table is checked on encode **and** on decode, on §3.6.3's grounds.
+
 ## 4. The two rules
 
 ### 4.1 V-RULE

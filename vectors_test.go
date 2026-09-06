@@ -52,6 +52,11 @@ type vectorFields struct {
 	MaxNodes             int64          `json:"MaxNodes"`
 	Members              []vectorMember `json:"Members"`
 	Sigs                 []vectorSig    `json:"Sigs"`
+	Purpose              int64          `json:"Purpose"`
+	GenesisDigest        string         `json:"GenesisDigest"`
+	Value                string         `json:"Value"`
+	ProposalDigest       string         `json:"ProposalDigest"`
+	Aux                  string         `json:"Aux"`
 }
 
 type vectorMember struct {
@@ -174,6 +179,35 @@ func sigsetFromVector(t *testing.T, v derVector) SignatureSetV0 {
 	return s
 }
 
+func signedFromVector(t *testing.T, v derVector) SignedV1 {
+	t.Helper()
+	return SignedV1{
+		Version:       v.Fields.Version,
+		Purpose:       v.Fields.Purpose,
+		GenesisDigest: mustHex(t, v.Name, "GenesisDigest", v.Fields.GenesisDigest),
+		Payload:       mustHex(t, v.Name, "Payload", v.Fields.Payload),
+	}
+}
+
+func blobFromVector(t *testing.T, v derVector) SignedBlobV1 {
+	t.Helper()
+	return SignedBlobV1{
+		Version: v.Fields.Version,
+		Purpose: v.Fields.Purpose,
+		Payload: mustHex(t, v.Name, "Payload", v.Fields.Payload),
+		Value:   mustHex(t, v.Name, "Value", v.Fields.Value),
+	}
+}
+
+func commitPayloadFromVector(t *testing.T, v derVector) CommitPayloadV1 {
+	t.Helper()
+	return CommitPayloadV1{
+		Version:        v.Fields.Version,
+		ProposalDigest: mustHex(t, v.Name, "ProposalDigest", v.Fields.ProposalDigest),
+		Aux:            mustHex(t, v.Name, "Aux", v.Fields.Aux),
+	}
+}
+
 // encodeVector dispatches by structure name with an explicit switch, not reflection.
 func encodeVector(t *testing.T, v derVector) []byte {
 	t.Helper()
@@ -210,6 +244,24 @@ func encodeVector(t *testing.T, v derVector) []byte {
 		b, err := MarshalSignatureSetV0(sigsetFromVector(t, v))
 		if err != nil {
 			t.Fatalf("vector %s: MarshalSignatureSetV0: %v", v.Name, err)
+		}
+		return b
+	case "SignedV1":
+		b, err := MarshalSignedV1(signedFromVector(t, v))
+		if err != nil {
+			t.Fatalf("vector %s: MarshalSignedV1: %v", v.Name, err)
+		}
+		return b
+	case "SignedBlobV1":
+		b, err := MarshalSignedBlobV1(blobFromVector(t, v))
+		if err != nil {
+			t.Fatalf("vector %s: MarshalSignedBlobV1: %v", v.Name, err)
+		}
+		return b
+	case "CommitPayloadV1":
+		b, err := MarshalCommitPayloadV1(commitPayloadFromVector(t, v))
+		if err != nil {
+			t.Fatalf("vector %s: MarshalCommitPayloadV1: %v", v.Name, err)
 		}
 		return b
 	default:
@@ -250,6 +302,27 @@ func roundTripVector(t *testing.T, v derVector, der []byte) ([]byte, error) {
 			return nil, err
 		}
 		b, err := MarshalSignatureSetV0(s)
+		return reMarshal(t, v.Name, b, err)
+	case "SignedV1":
+		s, err := UnmarshalSignedV1(der)
+		if err != nil {
+			return nil, err
+		}
+		b, err := MarshalSignedV1(s)
+		return reMarshal(t, v.Name, b, err)
+	case "SignedBlobV1":
+		blob, err := UnmarshalSignedBlobV1(der)
+		if err != nil {
+			return nil, err
+		}
+		b, err := MarshalSignedBlobV1(blob)
+		return reMarshal(t, v.Name, b, err)
+	case "CommitPayloadV1":
+		p, err := UnmarshalCommitPayloadV1(der)
+		if err != nil {
+			return nil, err
+		}
+		b, err := MarshalCommitPayloadV1(p)
 		return reMarshal(t, v.Name, b, err)
 	default:
 		t.Fatalf("vector %s: unknown structure %q", v.Name, v.Structure)

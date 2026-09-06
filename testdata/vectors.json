@@ -325,6 +325,153 @@
         "      04 02 5633     OCTET STRING \"V3\"        Value",
         "      04 02 4d33     OCTET STRING \"M3\"        Msg"
       ]
+    },
+    {
+      "name": "signed/v1/commit",
+      "structure": "SignedV1",
+      "fields": {
+        "Version": 1,
+        "Purpose": 1,
+        "GenesisDigest": "6f01053c3c3138add51b210aa00048a53bf321b942dca9783eba55637478dc56",
+        "Payload": "5041594c4f4144"
+      },
+      "der": "303102010102010104206f01053c3c3138add51b210aa00048a53bf321b942dca9783eba55637478dc5604075041594c4f4144",
+      "sha256": "2eb248ac1c695ed0d5eb2ec3ba421311f507f69e985c5730a76c3cc0b230f4da",
+      "annotation": [
+        "The envelope named in 3.8. GenesisDigest is the SHA-256 of vector genesis/v1/n4, so this envelope names the cluster the signature is for. It is never transmitted: a verifier reconstructs the envelope with its own genesis digest, which is why a signature minted against another cluster cannot be made to verify.",
+        "30 31                           SEQUENCE, 49 bytes",
+        "  02 01 01                      INTEGER 1                Version",
+        "  02 01 01                      INTEGER 1                Purpose - commit signature",
+        "  04 20 6f01\u2026dc56               OCTET STRING, 32 bytes   GenesisDigest (SHA-256 of genesis/v1/n4)",
+        "  04 07 5041594c4f4144          OCTET STRING \"PAYLOAD\"   Payload - DER of CommitPayloadV1 in practice, opaque here"
+      ]
+    },
+    {
+      "name": "signed/v1/opaque",
+      "structure": "SignedV1",
+      "fields": {
+        "Version": 1,
+        "Purpose": 2,
+        "GenesisDigest": "6f01053c3c3138add51b210aa00048a53bf321b942dca9783eba55637478dc56",
+        "Payload": "5041594c4f4144"
+      },
+      "der": "303102010102010204206f01053c3c3138add51b210aa00048a53bf321b942dca9783eba55637478dc5604075041594c4f4144",
+      "sha256": "d43b0a657f84bbdae1d696f3904066f7a7219d62cf7e359376600f0b1d74ba58",
+      "annotation": [
+        "Byte for byte signed/v1/commit with one content byte changed - 02 01 02 in place of 02 01 01 - and an unrelated digest. This is the view-change / opaque Sign purpose.",
+        "  02 01 02                      INTEGER 2                Purpose - opaque Sign"
+      ]
+    },
+    {
+      "name": "signed/v1/client-request",
+      "structure": "SignedV1",
+      "fields": {
+        "Version": 1,
+        "Purpose": 3,
+        "GenesisDigest": "6f01053c3c3138add51b210aa00048a53bf321b942dca9783eba55637478dc56",
+        "Payload": "5041594c4f4144"
+      },
+      "der": "303102010102010304206f01053c3c3138add51b210aa00048a53bf321b942dca9783eba55637478dc5604075041594c4f4144",
+      "sha256": "55691192393cc3def2f5ca03397332db6a65a57891689c80093f5a9d425e2fb9",
+      "annotation": [
+        "The client-request purpose over the same payload.",
+        "  02 01 03                      INTEGER 3                Purpose - client request"
+      ]
+    },
+    {
+      "name": "signed/v1/read-index",
+      "structure": "SignedV1",
+      "fields": {
+        "Version": 1,
+        "Purpose": 4,
+        "GenesisDigest": "6f01053c3c3138add51b210aa00048a53bf321b942dca9783eba55637478dc56",
+        "Payload": "5041594c4f4144"
+      },
+      "der": "303102010102010404206f01053c3c3138add51b210aa00048a53bf321b942dca9783eba55637478dc5604075041594c4f4144",
+      "sha256": "d5090fa22aef72d129d69ed38025ecbd60f9a4fe66cc6a3764b606525f5337e6",
+      "annotation": [
+        "The read-index attestation purpose over the same payload. These four vectors carry one payload under all four purposes and hash to four unrelated digests, which is the whole of 3.8.3: a captured commit signature presented as a read-index attestation covers bytes that do not exist.",
+        "  02 01 04                      INTEGER 4                Purpose - read-index attestation"
+      ]
+    },
+    {
+      "name": "signed/v1/long-form-length",
+      "structure": "SignedV1",
+      "fields": {
+        "Version": 1,
+        "Purpose": 1,
+        "GenesisDigest": "6f01053c3c3138add51b210aa00048a53bf321b942dca9783eba55637478dc56",
+        "Payload": "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a"
+      },
+      "der": "3081f302010102010104206f01053c3c3138add51b210aa00048a53bf321b942dca9783eba55637478dc560481c85a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a",
+      "sha256": "486536884d7a59c6711a3b03906091629237ee0616d6022b182134199bc6b254",
+      "annotation": [
+        "A 200-byte payload puts both the payload and the outer SEQUENCE into DER long-form length. Per 2.4 the only legal spellings are 81 c8 and 81 f3; 82 00 c8 must be rejected.",
+        "30 81 f3                        SEQUENCE, 243 bytes      long form: 81 says one length byte follows",
+        "  02 01 01                      INTEGER 1                Version",
+        "  02 01 01                      INTEGER 1                Purpose",
+        "  04 20 6f01\u2026dc56               OCTET STRING, 32 bytes   GenesisDigest",
+        "  04 81 c8 5a*200               OCTET STRING, 200 bytes  Payload"
+      ]
+    },
+    {
+      "name": "blob/v1/basic",
+      "structure": "SignedBlobV1",
+      "fields": {
+        "Version": 1,
+        "Purpose": 1,
+        "Payload": "302a020101042035d84b08b379543f9d140ebc473d859c95e743dd0968adf54be28dd6e77275220403415558",
+        "Value": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f"
+      },
+      "der": "3076020101020101042c302a020101042035d84b08b379543f9d140ebc473d859c95e743dd0968adf54be28dd6e772752204034155580440000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+      "sha256": "f935d92ed4f61b0a1d00b14f59e2cccf5a5a317271b660043b3274c2b59c92a0",
+      "annotation": [
+        "A signature travelling beside the payload it covers. Payload is the DER of vector commit-payload/v1/with-aux; Value is 00 01 02 \u2026 3f, a placeholder in signature position.",
+        "There is no GenesisDigest field and no signer field. A verifier holding genesis digest 6f01\u2026dc56 - the SHA-256 of vector genesis/v1/n4 - reconstructs the envelope of 3.8 as SignedV1{1, 1, 6f01\u2026dc56, Payload}, whose DER is:",
+        "  30 56 02 01 01 02 01 01 04 20 6f01\u2026dc56 04 2c 302a\u20264155 58",
+        "  full: 305602010102010104206f01053c3c3138add51b210aa00048a53bf321b942dca9783eba55637478dc56042c302a020101042035d84b08b379543f9d140ebc473d859c95e743dd0968adf54be28dd6e77275220403415558",
+        "  sha256 of that envelope: 60ba3d4e4b91c909e91730318005a99eaac5f6a2d0dd7f19f55fddb5fde04f7b",
+        "Value is the Ed25519 signature over those 88 envelope bytes. A verifier holding a different genesis digest reconstructs different bytes and the signature fails - it does not fail a field comparison, it fails cryptographically, and there is no field in this vector an attacker could have set.",
+        "30 76                           SEQUENCE, 118 bytes",
+        "  02 01 01                      INTEGER 1                Version",
+        "  02 01 01                      INTEGER 1                Purpose - commit signature",
+        "  04 2c 302a\u20264155 58            OCTET STRING, 44 bytes   Payload (commit-payload/v1/with-aux)",
+        "  04 40 0001\u20263e3f               OCTET STRING, 64 bytes   Value"
+      ]
+    },
+    {
+      "name": "commit-payload/v1/with-aux",
+      "structure": "CommitPayloadV1",
+      "fields": {
+        "Version": 1,
+        "ProposalDigest": "35d84b08b379543f9d140ebc473d859c95e743dd0968adf54be28dd6e7727522",
+        "Aux": "415558"
+      },
+      "der": "302a020101042035d84b08b379543f9d140ebc473d859c95e743dd0968adf54be28dd6e77275220403415558",
+      "sha256": "a34c7a6c72c3f679078c7b55b5340c351cb8070cadec20d1893b16ee785f4924",
+      "annotation": [
+        "What a consenter signature covers. ProposalDigest is the SHA-256 of vector proposal/v0/smartbft-reference, so this vector binds to a proposal the annex already pins. Aux is the fork's auxiliary input, relayed verbatim and opaque here.",
+        "Both fields sit under one signature, which is what makes a consenter signature non-transplantable: it cannot be lifted onto another proposal, and the aux cannot be swapped by whoever relays it.",
+        "30 2a                           SEQUENCE, 42 bytes",
+        "  02 01 01                      INTEGER 1                Version",
+        "  04 20 35d8\u20267522               OCTET STRING, 32 bytes   ProposalDigest (SHA-256 of proposal/v0/smartbft-reference)",
+        "  04 03 415558                  OCTET STRING \"AUX\"       Aux"
+      ]
+    },
+    {
+      "name": "commit-payload/v1/empty-aux",
+      "structure": "CommitPayloadV1",
+      "fields": {
+        "Version": 1,
+        "ProposalDigest": "35d84b08b379543f9d140ebc473d859c95e743dd0968adf54be28dd6e7727522",
+        "Aux": ""
+      },
+      "der": "3027020101042035d84b08b379543f9d140ebc473d859c95e743dd0968adf54be28dd6e77275220400",
+      "sha256": "4abf1cbd086ecd0ae413a3703df6aa367a11b454fd78a682d75718bccc5f437c",
+      "annotation": [
+        "The same proposal with no auxiliary input. Per 2.6 an absent Aux and an empty one are the same 04 00 and cannot be told apart, so a verifier that needs the distinction carries it elsewhere.",
+        "  04 00                         OCTET STRING, 0 bytes    Aux"
+      ]
     }
   ],
 
