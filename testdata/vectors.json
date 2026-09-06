@@ -440,6 +440,43 @@
       ]
     },
     {
+      "name": "blob/v1/signed-by-test-key",
+      "structure": "SignedBlobV1",
+      "fields": {
+        "Version": 1,
+        "Purpose": 4,
+        "Payload": "301f020101020102020109020210000410b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+        "Value": "83f606bc6c5e12b8525df30f7ace6f74d713b58a8625e107ae0c9b6b80862eae589f829e1fcd71f7e5ed5af64393004070e4634d71b7a90c49e2886a0a237407",
+        "GenesisDigest": "6f01053c3c3138add51b210aa00048a53bf321b942dca9783eba55637478dc56",
+        "PubKey": "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8"
+      },
+      "der": "306b0201010201040421301f020101020102020109020210000410b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1044083f606bc6c5e12b8525df30f7ace6f74d713b58a8625e107ae0c9b6b80862eae589f829e1fcd71f7e5ed5af64393004070e4634d71b7a90c49e2886a0a237407",
+      "sha256": "1ce69a82f0dacd55494b9662f800623e05199734b2e811f23f0bff5195097129",
+      "annotation": [
+        "The one vector in this annex carrying a real Ed25519 signature. Every other vector records a format; this one records a signature a client can check, which is what turns KV-05's 'verifiable by the client' from a design statement into an executed one - ci/verify_vectors.py executes it in Python, not in the language the cluster is written in.",
+        "Signing key: the fixed 32-byte seed 000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f. A conformance vector produced from a random key is one nobody else can regenerate; from this seed anyone reproduces the signature below without this repository. The Ed25519 public key it derives is 03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8, recorded in fields as PubKey.",
+        "PubKey and GenesisDigest are NOT fields of SignedBlobV1 and are not on the wire. 3.9.1 froze the envelope as something the verifier reconstructs from its OWN genesis digest, so there is no field here for an attacker to set; der carries Version, Purpose, Payload and Value and nothing else. Both are recorded as the verifier's inputs, and that distinction is the easiest thing in this annex to misread.",
+        "Purpose is 4 and Payload is a ReadIndexV1, so this is the read-index attestation a client actually receives rather than a synthetic blob.",
+        "The bytes Value covers, reconstructed per 3.9.1 as SignedV1{1, 4, <verifier's genesis digest>, Payload}:",
+        "  30 4b 02 01 01 02 01 04 04 20 6f01\u2026dc56 04 21 301f\u2026b1b1",
+        "  full: 304b02010102010404206f01053c3c3138add51b210aa00048a53bf321b942dca9783eba55637478dc560421301f020101020102020109020210000410b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+        "  sha256 of that envelope: 2f3c2f21b8f5f9570b3ae48ae62d0d8ff627b75110672e409113eada1126174c",
+        "A verifier holding any other genesis digest reconstructs different bytes, and this signature does not cover them. Flipping one bit of Value breaks it too; both negatives are asserted, in Go by TestSignedVectorVerifies and in Python by ci/negative-gate.sh.",
+        "30 6b                           SEQUENCE, 107 bytes",
+        "  02 01 01                      INTEGER 1                Version",
+        "  02 01 04                      INTEGER 4                Purpose - read-index attestation",
+        "  04 21 301f\u2026b1b1              OCTET STRING, 33 bytes   Payload (a ReadIndexV1)",
+        "  04 40 83f6\u20267407              OCTET STRING, 64 bytes   Value",
+        "Payload decoded, which is what purpose 4 names in 3.8.5:",
+        "  30 1f                         SEQUENCE, 31 bytes       ReadIndexV1",
+        "    02 01 01                    INTEGER 1                Version",
+        "    02 01 02                    INTEGER 2                SignerID - node 2",
+        "    02 01 09                    INTEGER 9                View",
+        "    02 02 10 00                 INTEGER 4096             Seq",
+        "    04 10 b1*16                 OCTET STRING, 16 bytes   Nonce - client chosen"
+      ]
+    },
+    {
       "name": "commit-payload/v1/with-aux",
       "structure": "CommitPayloadV1",
       "fields": {
